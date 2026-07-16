@@ -1,0 +1,16 @@
+from pydantic_settings import BaseSettings
+from typing import Optional
+
+class Settings(BaseSettings):
+    # TODO: Add specific app configurations here
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/applycm"
+    JWT_SECRET: str = "placeholder_secret"
+    JWT_ALGORITHM: str = "HS256"
+    STORAGE_URL: Optional[str] = None
+    STORAGE_KEY: Optional[str] = None
+
+    class Config:
+        env_file = ".env"
+        extra = "ignore"
+
+settings = Settings()
