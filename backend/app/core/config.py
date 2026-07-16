@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     STORAGE_URL: Optional[str] = None
     STORAGE_KEY: Optional[str] = None
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = {
+        "env_file": ".env",
+        "extra": "ignore"
+    }
 
 settings = Settings()

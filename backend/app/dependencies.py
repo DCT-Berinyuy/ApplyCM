@@ -17,5 +17,7 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
     # TODO: Decode and verify token, then retrieve user from DB
-    # For now, return a placeholder or raise an HTTP exception if token is invalid
-    return None
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Authentication not fully implemented"
+    )

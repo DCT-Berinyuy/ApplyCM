@@ -12,7 +12,7 @@ app = FastAPI(
 # CORS middleware configuration for frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # TODO: Adjust origins in production config
+    allow_origins=["http://localhost:5173"],  # SvelteKit local dev server origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
