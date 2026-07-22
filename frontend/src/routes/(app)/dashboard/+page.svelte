@@ -4,7 +4,7 @@
 
 <div class="dashboard-page">
     <h2>Dashboard</h2>
-    <p>Welcome to your ApplyCM dashboard. Track your university applications here.</p>
+    <p>Welcome to your ApplyCM dashboard. Track your university applications here!!.</p>
 
     <div class="stats-grid">
         <div class="stat-card">
