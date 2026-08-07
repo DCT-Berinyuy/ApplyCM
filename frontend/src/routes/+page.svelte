@@ -1,5 +1,5 @@
 <script lang="ts">
-    // TODO: Implement landing page state and interactive animations if needed
+
 </script>
 
 <div class="landing-container">
@@ -26,7 +26,7 @@
 </div>
 
 <style>
-    /* TODO: Implement beautiful themed landing page styling */
+
     .landing-container {
         font-family: sans-serif;
         text-align: center;
