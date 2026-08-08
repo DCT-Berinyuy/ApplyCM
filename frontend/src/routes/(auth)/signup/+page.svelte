@@ -52,9 +52,7 @@
             <label for="password">Password</label>
             <div class="password-container">
                 <input type={isSeen ? "text" : "password"} id="password" required bind:value={password}>
-                <button type="button" class="eye-btn" onclick={() => isSeen = false}>
-                    hey
-                </button>
+                
             </div>
         </div>
         <div class="form-group">

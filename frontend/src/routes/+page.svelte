@@ -1,7 +1,24 @@
 <script lang="ts">
+let searchQuery = "";
 
+function handleSearch() {
+    if (searchQuery.trim() === "") {
+        alert("Please enter a search query.");
+        return;
+    }
+    // Implement search functionality here
+    console.log("Searching for:", searchQuery);
+}
 </script>
-
+<div class="static-header">
+    <div class="logo">
+        <h1>ApplyCM</h1>
+    </div>
+    <form class="search-form" onsubmit={(event) => { event.preventDefault(); handleSearch(); }}>
+        <input type="text" placeholder="Search for programs, universities..." bind:value={searchQuery} />
+        <button type="submit">Search</button>
+    </form>
+</div>
 <div class="landing-container">
     <header>
         <h1>ApplyCM</h1>
@@ -37,6 +54,14 @@
     header h1 {
         font-size: 3rem;
         color: #2b6cb0;
+    }
+    .static-header {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.1em 1em;
+        background-color: #f7fafc;
+        border-bottom: 1px solid #e2e8f0;
     }
     .start {
         margin-top: 100px;
