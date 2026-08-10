@@ -41,44 +41,62 @@
     }
 </script>
 
-<div class="auth-card">
-    <h2 class="auth-card-title">Create your ApplyCM Account</h2>
-    <form onsubmit={(event) => { event.preventDefault(); signup(); }}>
-        <div class="form-group">
-            <label for="email">Email Address</label>
-            <input type="email" id="email" required bind:value={email} disabled={isLoading} />
-        </div>
-        <div class="form-group">
-            <label for="password">Password</label>
-            <div class="password-container">
-                <input type={isSeen ? "text" : "password"} id="password" required bind:value={password}>
-                
+<div class="page-background">
+    <div class="auth-card">
+        <h2 class="auth-card-title">Create your ApplyCM Account</h2>
+        <form onsubmit={(event) => { event.preventDefault(); signup(); }}>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" required bind:value={email} disabled={isLoading} />
             </div>
-        </div>
-        <div class="form-group">
-            <label for="confirm-password">Confirm Password</label>
-            <input type="password" id="confirm-password" required bind:value={confirmPassword} disabled={isLoading} />
-        </div>
-        <button type="submit" class="btn-submit" disabled={isLoading}>{#if isLoading}Signing up...{:else}Sign Up{/if}</button>
-    </form>
-    <p>Already have an account? <a href="/login">Login</a></p>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <div class="password-container">
+                    <input
+                        id="password"
+                        type="password"
+                        required
+                        bind:value={password}
+                        disabled={isLoading}
+                    />
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="confirm-password">Confirm Password</label>
+                <input type="password" id="confirm-password" required bind:value={confirmPassword} disabled={isLoading} />
+            </div>
+            <button type="submit" class="btn-submit" disabled={isLoading}>{#if isLoading}Signing up...{:else}Sign Up{/if}</button>
+        </form>
+        <p>Already have an account? <a href="/login">Login</a></p>
+    </div>
 </div>
 
 <style>
+    .page-background {
+        min-height: 100vh;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at 50% 20%, #234c8e 0%, #142a51 45%, #050a14 100%);
+        padding: 2rem 1rem;
+    }
 
     .auth-card {
         max-width: 400px;
-        margin: 7rem auto;
+        width: 100%;
+        margin: 0 auto;
         padding: 2rem;
+        background: #ffffff;
         border: 1px solid #96bef3;
         border-radius: 40px;
         border-width: 0.5px;
-        box-shadow: 0 4px 8px rgb(51, 132, 238)
+        box-shadow: 0 8px 24px rgba(51, 132, 238, 0.35), 0 2px 6px rgba(0, 0, 0, 0.3);
+        transition: box-shadow 0.5s ease-in-out, transform 0.5s ease-in-out;
     }
     .auth-card:hover {
-        box-shadow: 0 10px 16px rgba(0, 0, 0, 0.5);
-        transition: box-shadow 0.5s ease-in-out;
-        transform: translateY(-2px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), 0 8px 16px rgba(51, 132, 238, 0.4);
+        transform: translateY(-6px);
     }
     .auth-card-title {
         text-align: center;
@@ -111,14 +129,7 @@
     .password-container {
         position: relative;
     }
-    .eye-btn {
-        position: absolute;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 1.2rem;
+    .password-container input {
+        padding-right: 0.5rem;
     }
 </style>
