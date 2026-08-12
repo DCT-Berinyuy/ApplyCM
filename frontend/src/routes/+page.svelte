@@ -141,13 +141,20 @@
 		box-shadow: 0 14px 28px -14px rgba(180, 71, 43, 0.6);
 	}
 	.btn-text {
+		background:#9e9a96;
 		text-decoration: none;
 		font-weight: 500;
-		color: var(--color-ink-soft);
-		transition: color 0.2s ease;
+		color: 'black';
+		padding: 0.9rem 1.75rem;
+		border-radius:500px;
+		transition: background cubic-bezeir(0.6,0.04,0.98,0.335);
 	}
 	.btn-text:hover {
-		color: var(--color-ink);
+		transform: translatex(3px);
+		transition: all 0.3s ease-in-out;
+		box-shadow: 0.14px 28px -14px rgba(180, 71, 43,0.6);
+
+
 	}
 	.hero-note {
 		margin-top: 2rem;
