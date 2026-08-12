@@ -32,9 +32,8 @@
 	</p>
 	<div class="hero-actions">
 		<a href="/signup" class="btn-primary">Create your profile</a>
-		<a href="/login" class="btn-text">I already have an account →</a>
+		<a href="/login" class="btn-text">I already have an account</a>
 	</div>
-	<p class="hero-note">Built in Yaoundé, for students in all ten regions.</p>
 </section>
 
 <section class="steps" id="how-it-works">
@@ -85,7 +84,7 @@
 			<a href="/login">Log in</a>
 		</nav>
 	</div>
-	<p class="footer-copy">&copy; {new Date().getFullYear()} ApplyCM. Built in Cameroon.</p>
+	<p class="footer-copy">&copy; {new Date().getFullYear()} ApplyCM.</p>
 </footer>
 
 <style>
@@ -141,20 +140,19 @@
 		box-shadow: 0 14px 28px -14px rgba(180, 71, 43, 0.6);
 	}
 	.btn-text {
+		background: #9e9a9a;
 		text-decoration: none;
 		font-weight: 500;
-		color: var(--color-ink-soft);
-		transition: color 0.2s ease;
+		padding: 0.9rem 1.75rem;
+		color: 'black';
+		border-radius:500px;
+		transition: background cubic-bezier(0.6, 0.04, 0.98, 0.335)
 	}
 	.btn-text:hover {
-		color: var(--color-ink);
-	}
-	.hero-note {
-		margin-top: 2rem;
-		font-family: var(--font-mono);
-		font-size: 0.75rem;
-		color: var(--color-ink-soft);
-		letter-spacing: 0.03em;
+		transform: translateX(3px);
+		transition:all 0.3s ease-in-out;
+		box-shadow: 0 14px 28px -14px rgba(180, 71, 43, 0.6);
+		
 	}
 
 	/* Steps */
