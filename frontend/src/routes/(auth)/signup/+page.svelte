@@ -3,6 +3,7 @@
     let email = $state("");
     let password = $state("");
     let confirmPassword = $state("");
+    let isSeen = $state(true);
     let isLoading = $state(false);
 
     async function signup() {
