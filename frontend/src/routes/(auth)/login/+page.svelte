@@ -1,8 +1,8 @@
 <script lang="ts">
-    let email = "";
-    let password = "";
-    let isLoading = false;
-    let errorMessage = "";
+    let email = $state("");
+    let password = $state("");
+    let isLoading = $state(false);
+    let errorMessage = $state("");
 
     async function login() {
         errorMessage = "";

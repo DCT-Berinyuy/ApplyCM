@@ -1,10 +1,10 @@
 <script lang="ts">
 //support@fapshi.com
-    let email = "";
-    let password = "";
-    let confirmPassword = "";
-    let isSeen = true;
-    let isLoading = false;
+    let email = $state("");
+    let password = $state("");
+    let confirmPassword = $state("");
+    let isSeen = $state(true);
+    let isLoading = $state(false);
 
     async function signup() {
         if (password.length < 6) {
