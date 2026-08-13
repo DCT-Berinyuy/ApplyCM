@@ -6,7 +6,7 @@ from app.db.database import SessionLocal
 from app.core.security import verify_token
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def get_db() -> Generator[Session, None, None]:
     db = SessionLocal()
@@ -24,13 +24,24 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     payload = verify_token(token)
     if payload is None:
         raise credentials_exception
-
-    email: str = payload.get("sub")
-    if email is None:
+    
+    sub = payload.get("sub")
+    if sub is None:
         raise credentials_exception
+        
+    if str(sub).isdigit():
+        user = db.query(User).filter(User.id == int(sub)).first()
+    else:
+        user = db.query(User).filter(User.email == str(sub)).first()
 
-    user = db.query(User).filter(User.email == email).first()
     if user is None:
         raise credentials_exception
-
+        
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user"
+        )
+        
     return user
+
