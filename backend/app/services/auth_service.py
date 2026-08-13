@@ -23,7 +23,8 @@ class AuthService:
         db_user = User(
             email=user_in.email,
             hashed_password=hashed_pwd,
-            role=user_in.role or "student"
+            role=user_in.role or "student",
+            is_active=True
         )
         db.add(db_user)
         db.commit()
@@ -38,3 +39,4 @@ class AuthService:
         if not verify_password(password, user.hashed_password):
             return None
         return user
+

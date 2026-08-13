@@ -11,8 +11,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/signup", response_model=User, status_code=status.HTTP_201_CREATED)
 def signup(user_in: UserCreate, db: Session = Depends(get_db)):
-    user = AuthService.create_user(db=db, user_in=user_in)
-    return user
+    return AuthService.create_user(db=db, user_in=user_in)
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -27,10 +26,21 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(data={"sub": str(user.id)})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=User)
-def read_current_user(current_user: UserModel = Depends(get_current_user)):
-    return current_user
-
 @router.post("/logout")
 def logout():
+    """
+    Stateless JWT Logout endpoint.
+    In a stateless JWT architecture, the server does not track active tokens.
+    Calling logout signals the frontend to clear its stored token.
+    """
     return {"message": "Successfully logged out. Please clear your token on the client side."}
+
+@router.get("/me", response_model=User)
+def read_current_user(current_user: UserModel = Depends(get_current_user)):
+    """
+    Protected test route.
+    Requires a valid JWT Bearer token in the Authorization header.
+    Returns the current authenticated user profile.
+    """
+    return current_user
+
