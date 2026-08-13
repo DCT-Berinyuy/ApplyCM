@@ -1,5 +1,5 @@
 <script lang="ts">
-//support@fapshi.com
+    //support@fapshi.com
     let email = $state("");
     let password = $state("");
     let confirmPassword = $state("");
@@ -17,25 +17,31 @@
         }
         isLoading = true;
         try {
-            const response = await fetch("/api/signup", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
+            const response = await fetch(
+                "http://127.0.0.1:8001/api/auth/signup",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ email, password }),
                 },
-                body: JSON.stringify({ email, password }),
-            });
+            );
 
             if (!response.ok) {
-                throw new Error("Signup failed");
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || "Signup failed");
             }
 
-            // Handle successful signup (e.g., redirect to login page)
-            window.location.href = "/dashboard";
-        } catch (error) {
+            alert("Account created successfully! Redirecting to login...");
+            window.location.href = "/login";
+        } catch (error: any) {
             console.error(error);
-            alert("An error occurred during signup. Please try again.");
-        }
-        finally {
+            alert(
+                error.message ||
+                    "An error occurred during signup. Please try again.",
+            );
+        } finally {
             isLoading = false;
         }
     }
@@ -44,10 +50,21 @@
 <div class="page-background">
     <div class="auth-card">
         <h2 class="auth-card-title">Create your ApplyCM Account</h2>
-        <form onsubmit={(event) => { event.preventDefault(); signup(); }}>
+        <form
+            onsubmit={(event) => {
+                event.preventDefault();
+                signup();
+            }}
+        >
             <div class="form-group">
                 <label for="email">Email Address</label>
-                <input type="email" id="email" required bind:value={email} disabled={isLoading} />
+                <input
+                    type="email"
+                    id="email"
+                    required
+                    bind:value={email}
+                    disabled={isLoading}
+                />
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
@@ -63,9 +80,17 @@
             </div>
             <div class="form-group">
                 <label for="confirm-password">Confirm Password</label>
-                <input type="password" id="confirm-password" required bind:value={confirmPassword} disabled={isLoading} />
+                <input
+                    type="password"
+                    id="confirm-password"
+                    required
+                    bind:value={confirmPassword}
+                    disabled={isLoading}
+                />
             </div>
-            <button type="submit" class="btn-submit" disabled={isLoading}>{#if isLoading}Signing up...{:else}Sign Up{/if}</button>
+            <button type="submit" class="btn-submit" disabled={isLoading}
+                >{#if isLoading}Signing up...{:else}Sign Up{/if}</button
+            >
         </form>
         <p>Already have an account? <a href="/login">Login</a></p>
     </div>
@@ -78,7 +103,12 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(circle at 50% 20%, #234c8e 0%, #142a51 45%, #050a14 100%);
+        background: radial-gradient(
+            circle at 50% 20%,
+            #234c8e 0%,
+            #142a51 45%,
+            #050a14 100%
+        );
         padding: 2rem 1rem;
     }
 
@@ -91,11 +121,17 @@
         border: 1px solid #96bef3;
         border-radius: 40px;
         border-width: 0.5px;
-        box-shadow: 0 8px 24px rgba(51, 132, 238, 0.35), 0 2px 6px rgba(0, 0, 0, 0.3);
-        transition: box-shadow 0.5s ease-in-out, transform 0.5s ease-in-out;
+        box-shadow:
+            0 8px 24px rgba(51, 132, 238, 0.35),
+            0 2px 6px rgba(0, 0, 0, 0.3);
+        transition:
+            box-shadow 0.5s ease-in-out,
+            transform 0.5s ease-in-out;
     }
     .auth-card:hover {
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45), 0 8px 16px rgba(51, 132, 238, 0.4);
+        box-shadow:
+            0 20px 40px rgba(0, 0, 0, 0.45),
+            0 8px 16px rgba(51, 132, 238, 0.4);
         transform: translateY(-6px);
     }
     .auth-card-title {
