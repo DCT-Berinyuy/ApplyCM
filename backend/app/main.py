@@ -26,12 +26,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API routers under /api namespace
+# Including API routers under /api namespace
 app.include_router(auth.router, prefix="/api")
 app.include_router(students.router, prefix="/api")
 app.include_router(schools.router, prefix="/api")
 app.include_router(applications.router, prefix="/api")
 app.include_router(favorites.router, prefix="/api")
+
+
+
 
 @app.get("/")
 def read_root():
