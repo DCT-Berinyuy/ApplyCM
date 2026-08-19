@@ -1,3 +1,4 @@
+import uuid
 from typing import Generator
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -29,9 +30,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if sub is None:
         raise credentials_exception
         
-    if str(sub).isdigit():
-        user = db.query(User).filter(User.id == int(sub)).first()
-    else:
+    user = None
+    try:
+        user_uuid = uuid.UUID(str(sub))
+        user = db.query(User).filter(User.id == user_uuid).first()
+    except (ValueError, AttributeError):
         user = db.query(User).filter(User.email == str(sub)).first()
 
     if user is None:
@@ -44,4 +47,5 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         )
         
     return user
+
 

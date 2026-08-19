@@ -1,26 +1,28 @@
 from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
+from datetime import datetime
 
 class StudentProfileBase(BaseModel):
-    first_name: str
-    last_name: str
+    full_name: str
     phone: Optional[str] = None
-    nationality: Optional[str] = "Cameroonian"
-    high_school: Optional[str] = None
+    education_summary: Optional[str] = None
+    writing_sample: Optional[str] = None
 
 class StudentProfileCreate(StudentProfileBase):
-    user_id: int
+    user_id: UUID
 
 class StudentProfileUpdate(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
+    full_name: Optional[str] = None
     phone: Optional[str] = None
-    nationality: Optional[str] = None
-    high_school: Optional[str] = None
+    education_summary: Optional[str] = None
+    writing_sample: Optional[str] = None
 
 class StudentProfile(StudentProfileBase):
-    id: int
-    user_id: int
+    id: UUID
+    user_id: UUID
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
