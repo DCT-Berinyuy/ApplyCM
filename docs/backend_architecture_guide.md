@@ -1,0 +1,596 @@
+# 🚀 ApplyCM Backend Architecture & Code Walkthrough Guide
+
+This comprehensive guide is designed for the frontend development team to thoroughly understand the **ApplyCM** Python FastAPI backend architecture, database layers, security models, request lifecycles, and every file and line of code.
+
+---
+
+## 🏗️ 1. High-Level Architecture & Request Lifecycle
+
+ApplyCM uses a decoupled **RESTful Client-Server Architecture**:
+- **Frontend**: SvelteKit running on `http://localhost:5173`.
+- **Backend**: Python FastAPI running on `http://localhost:8000`.
+- **Database**: PostgreSQL (hosted on Supabase) accessed via SQLAlchemy ORM.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Frontend as SvelteKit Client
+    participant Router as FastAPI Router (app/routers/auth.py)
+    participant Dep as Dependency Guard (app/dependencies.py)
+    participant Service as Service Layer (app/services/auth_service.py)
+    participant Sec as Security Utils (app/core/security.py)
+    participant ORM as SQLAlchemy ORM (app/models/user.py)
+    participant DB as Supabase PostgreSQL
+
+    Note over Frontend, DB: 1. User Registration (Signup) Flow
+    Frontend->>Router: POST /api/auth/signup { email, password }
+    Router->>Service: AuthService.create_user(db, user_in)
+    Service->>Service: Check duplicate email via get_user_by_email()
+    Service->>Sec: get_password_hash(user_in.password)
+    Sec-->>Service: Returns bcrypt salted hash
+    Service->>ORM: Instantiates User(email, hashed_password)
+    Service->>DB: db.add() -> db.commit() -> db.refresh()
+    DB-->>Service: Saved User ORM object (with auto-assigned ID)
+    Service-->>Router: User ORM object
+    Router-->>Frontend: HTTP 201 Created { id, email, role, is_active }
+
+    Note over Frontend, DB: 2. User Authentication (Login) Flow
+    Frontend->>Router: POST /api/auth/login (form-data: username, password)
+    Router->>Service: AuthService.authenticate_user(db, username, password)
+    Service->>DB: Query User by email
+    DB-->>Service: User ORM object
+    Service->>Sec: verify_password(password, user.hashed_password)
+    Sec-->>Service: Returns True / False
+    Service-->>Router: Authenticated User ORM object
+    Router->>Sec: create_access_token(data={"sub": str(user.id)})
+    Sec-->>Router: Encoded JWT string (signed with JWT_SECRET)
+    Router-->>Frontend: HTTP 200 OK { access_token, token_type: "bearer" }
+
+    Note over Frontend, DB: 3. Protected Request Flow (GET /api/auth/me)
+    Frontend->>Router: GET /api/auth/me (Header: "Authorization: Bearer <token>")
+    Router->>Dep: Depends(get_current_user)
+    Dep->>Sec: verify_token(token)
+    Sec-->>Dep: Decoded JWT payload {"sub": "2", "exp": 1786624144}
+    Dep->>DB: Query User by ID (2)
+    DB-->>Dep: User ORM object
+    Dep-->>Router: Inject current_user into endpoint handler
+    Router-->>Frontend: HTTP 200 OK { id: 2, email: "student@applycm.cm", ... }
+```
+
+---
+
+## 📐 2. UML Architecture & Class Diagram
+
+The following UML diagram visualizes how schemas, models, security helpers, services, dependencies, and routers relate to one another:
+
+```mermaid
+classDiagram
+    class UserBase {
+        +String email
+        +Boolean is_active
+        +String role
+    }
+
+    class UserCreate {
+        +String password
+    }
+
+    class User {
+        +int id
+    }
+
+    class Token {
+        +String access_token
+        +String token_type
+    }
+
+    class UserModel {
+        +int id
+        +String email
+        +String hashed_password
+        +Boolean is_active
+        +String role
+    }
+
+    class SecurityUtils {
+        +verify_password(plain, hashed) Boolean
+        +get_password_hash(password) String
+        +create_access_token(data, expires_delta) String
+        +verify_token(token) dict
+    }
+
+    class AuthService {
+        +get_user_by_email(db, email) UserModel
+        +create_user(db, user_in) UserModel
+        +authenticate_user(db, email, password) UserModel
+    }
+
+    class Dependencies {
+        +get_db() Generator
+        +get_current_user(token, db) UserModel
+    }
+
+    class AuthRouter {
+        +signup(user_in, db) User
+        +login(form_data, db) Token
+        +logout() dict
+        +read_current_user(current_user) User
+    }
+
+    UserBase <|-- UserCreate
+    UserBase <|-- User
+    UserModel ..> User : Serializes to
+    AuthService ..> SecurityUtils : Uses hashing & verification
+    AuthService ..> UserModel : Queries & persists
+    Dependencies ..> SecurityUtils : Verifies JWT
+    Dependencies ..> UserModel : Loads authenticated entity
+    AuthRouter ..> AuthService : Delegates business logic
+    AuthRouter ..> Dependencies : Injects DB & Auth Guards
+    AuthRouter ..> Token : Returns on login
+```
+
+---
+
+## 📄 3. Line-by-Line Technical Code Breakdown
+
+Below is a detailed, line-by-line explanation of every single file in the backend codebase.
+
+---
+
+### File 1: [app/main.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/main.py)
+*Purpose: Main FastAPI application entrypoint, CORS setup, and router registration.*
+
+```python
+1: from fastapi import FastAPI
+2: from fastapi.middleware.cors import CORSMiddleware
+3: from app.routers import auth, students, schools, applications, favorites
+4: from app.core.config import settings
+5: 
+6: app = FastAPI(
+7:     title="ApplyCM API",
+8:     description="Backend API for ApplyCM school search and unified application platform",
+9:     version="1.0.0"
+10: )
+```
+- **Line 1–4**: Imports the `FastAPI` framework, `CORSMiddleware` for cross-origin browser access, all API route modules (`auth`, `students`, etc.), and application `settings`.
+- **Line 6–10**: Instantiates the primary `FastAPI` application object `app` with metadata used by Swagger UI documentation (`/docs`).
+
+```python
+12: # CORS middleware configuration for frontend communication
+13: app.add_middleware(
+14:     CORSMiddleware,
+15:     allow_origins=["http://localhost:5173"],  # SvelteKit local dev server origin
+16:     allow_credentials=True,
+17:     allow_methods=["*"],
+18:     allow_headers=["*"],
+19: )
+```
+- **Line 13–19**: Adds `CORSMiddleware` to allow browsers running SvelteKit at `http://localhost:5173` to make cross-origin HTTP requests (including headers like `Authorization` and cookies) without being blocked by browser CORS security policies.
+
+```python
+21: # Include API routers under /api namespace
+22: app.include_router(auth.router, prefix="/api")
+23: app.include_router(students.router, prefix="/api")
+24: app.include_router(schools.router, prefix="/api")
+25: app.include_router(applications.router, prefix="/api")
+26: app.include_router(favorites.router, prefix="/api")
+27: 
+28: @app.get("/")
+29: def read_root():
+30:     return {"message": "Welcome to the ApplyCM API"}
+```
+- **Line 22–26**: Mounts router modules under the global `/api` URL prefix (making auth endpoints accessible at `/api/auth/...`).
+- **Line 28–30**: Defines a root endpoint `GET /` returning a welcome health-check JSON response.
+
+---
+
+### File 2: [app/core/config.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/core/config.py)
+*Purpose: Loads and validates environment variables from `.env` using Pydantic Settings.*
+
+```python
+1: from pydantic_settings import BaseSettings
+2: from typing import Optional
+3: 
+4: class Settings(BaseSettings):
+5:     # App configurations loaded from environment
+6:     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/applycm"
+7:     JWT_SECRET: str = "placeholder_secret"
+8:     JWT_ALGORITHM: str = "HS256"
+9:     STORAGE_URL: Optional[str] = None
+10:     STORAGE_KEY: Optional[str] = None
+11: 
+12:     model_config = {
+13:         "env_file": ".env",
+14:         "extra": "ignore"
+15:     }
+16: 
+17: settings = Settings()
+```
+- **Line 1–2**: Imports `BaseSettings` from `pydantic_settings` and `Optional` typing.
+- **Line 4–10**: Defines the `Settings` schema. Automatically reads variables (`DATABASE_URL`, `JWT_SECRET`, etc.) from environment variables or fallback defaults.
+- **Line 12–15**: `model_config` instructs Pydantic to parse the local `.env` file and ignore extra unrecognized environment variables.
+- **Line 17**: Creates a global `settings` instance available across the app.
+
+---
+
+### File 3: [app/core/security.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/core/security.py)
+*Purpose: Low-level security helpers: bcrypt password hashing and JWT token creation/decoding.*
+
+```python
+1: from datetime import datetime, timedelta, timezone
+2: from typing import Any, Union
+3: from jose import JWTError, jwt
+4: import bcrypt
+5: from app.core.config import settings
+6: 
+7: ACCESS_TOKEN_EXPIRE_MINUTES = 60
+```
+- **Line 1–5**: Imports Python date/time tools, `python-jose` for JWT operations, `bcrypt` for password hashing, and app settings.
+- **Line 7**: Defines global access token lifespan (60 minutes).
+
+```python
+9: def verify_password(plain_password: str, hashed_password: str) -> bool:
+10:     try:
+11:         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+12:     except Exception:
+13:         return False
+```
+- **Line 9–13**: `verify_password()` converts the plain text password and stored hash into UTF-8 bytes and calls `bcrypt.checkpw()`. Safely catches any format errors and returns `True` if valid, `False` if invalid.
+
+```python
+15: def get_password_hash(password: str) -> str:
+16:     pwd_bytes = password.encode('utf-8')
+17:     salt = bcrypt.gensalt()
+18:     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
+```
+- **Line 15–18**: `get_password_hash()` generates a random cryptographic salt (`bcrypt.gensalt()`), hashes the user password, and decodes the resulting byte array into a stored string.
+
+```python
+20: def create_access_token(data: dict, expires_delta: Union[timedelta, None] = None) -> str:
+21:     to_encode = data.copy()
+22:     if expires_delta:
+23:         expire = datetime.now(timezone.utc) + expires_delta
+24:     else:
+25:         expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+26:     
+27:     to_encode.update({"exp": expire})
+28:     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
+29:     return encoded_jwt
+```
+- **Line 20–29**: `create_access_token()` copies payload data (`{"sub": "2"}`), appends an expiration claim `exp` calculated using UTC time, and signs the payload with `settings.JWT_SECRET` using algorithm `HS256`. Returns the JWT string.
+
+```python
+31: def verify_token(token: str) -> Union[dict, None]:
+32:     try:
+33:         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+34:         return payload
+35:     except JWTError:
+36:         return None
+```
+- **Line 31–36**: `verify_token()` decodes the JWT using `JWT_SECRET` and validates the signature and expiration date. Returns the decoded dictionary payload or `None` if invalid or expired.
+
+---
+
+### File 4: [app/db/database.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/db/database.py)
+*Purpose: Initializes SQLAlchemy engine and session factory.*
+
+```python
+1: from sqlalchemy import create_engine
+2: from sqlalchemy.orm import sessionmaker
+3: from app.core.config import settings
+4: 
+5: engine = create_engine(settings.DATABASE_URL)
+6: SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+```
+- **Line 5**: Creates a SQLAlchemy `engine` connected to PostgreSQL (Supabase) via `settings.DATABASE_URL`.
+- **Line 6**: Configures `SessionLocal`, a factory class for producing database sessions with disabled `autocommit` and `autoflush` for explicit transaction control.
+
+---
+
+### File 5: [app/db/base_class.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/db/base_class.py) & [app/db/base.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/db/base.py)
+*Purpose: Declarative base class and Alembic metadata import registry.*
+
+```python
+# app/db/base_class.py
+1: from sqlalchemy.orm import declarative_base
+2: 
+3: Base = declarative_base()
+```
+- Defines `Base`, the parent declarative class from which all SQLAlchemy ORM models inherit.
+
+```python
+# app/db/base.py
+1: from app.db.base_class import Base
+2: from app.models.user import User
+3: from app.models.student_profile import StudentProfile
+...
+```
+- Registers all models on `Base.metadata` so Alembic autogenerates database migration scripts without circular import loops.
+
+---
+
+### File 6: [app/dependencies.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/dependencies.py)
+*Purpose: FastAPI Dependency Injection functions for database sessions and authentication guards.*
+
+```python
+1: from typing import Generator
+2: from fastapi import Depends, HTTPException, status
+3: from fastapi.security import OAuth2PasswordBearer
+4: from sqlalchemy.orm import Session
+5: from app.db.database import SessionLocal
+6: from app.core.security import verify_token
+7: from app.models.user import User
+8: 
+9: oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+```
+- **Line 9**: Instantiates `OAuth2PasswordBearer`, pointing Swagger UI to `/api/auth/login` and instructing FastAPI to parse the `Authorization: Bearer <token>` HTTP header.
+
+```python
+11: def get_db() -> Generator[Session, None, None]:
+12:     db = SessionLocal()
+13:     try:
+14:         yield db
+15:     finally:
+16:         db.close()
+```
+- **Line 11–16**: `get_db()` yields a fresh database session for each request and automatically closes it when the request finishes.
+
+```python
+18: def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+19:     credentials_exception = HTTPException(
+20:         status_code=status.HTTP_401_UNAUTHORIZED,
+21:         detail="Could not validate credentials",
+22:         headers={"WWW-Authenticate": "Bearer"},
+23:     )
+24:     payload = verify_token(token)
+25:     if payload is None:
+26:         raise credentials_exception
+27:     
+28:     sub = payload.get("sub")
+29:     if sub is None:
+30:         raise credentials_exception
+31:         
+32:     if str(sub).isdigit():
+33:         user = db.query(User).filter(User.id == int(sub)).first()
+34:     else:
+35:         user = db.query(User).filter(User.email == str(sub)).first()
+36: 
+37:     if user is None:
+38:         raise credentials_exception
+39:         
+40:     if not user.is_active:
+41:         raise HTTPException(
+42:             status_code=status.HTTP_400_BAD_REQUEST,
+43:             detail="Inactive user"
+44:         )
+45:         
+46:     return user
+```
+- **Line 18–46**: `get_current_user()` acts as our security guard:
+  1. Parses the Bearer token header.
+  2. Calls `verify_token(token)`.
+  3. Extracts the `sub` claim. Supports both integer user IDs (`User.id`) and email strings (`User.email`).
+  4. Queries Supabase for the matching user record.
+  5. Verifies `user.is_active`.
+  6. Injects the authenticated `User` object into the router handler, or raises `HTTP 401 Unauthorized`.
+
+---
+
+### File 7: [app/models/user.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/models/user.py)
+*Purpose: SQLAlchemy ORM entity representing the `users` table.*
+
+```python
+1: from sqlalchemy import Column, Integer, String, Boolean
+2: from sqlalchemy.orm import relationship
+3: from app.db.base_class import Base
+4: 
+5: class User(Base):
+6:     __tablename__ = "users"
+7: 
+8:     id = Column(Integer, primary_key=True, index=True)
+9:     email = Column(String, unique=True, index=True, nullable=False)
+10:     hashed_password = Column(String, nullable=False)
+11:     is_active = Column(Boolean, default=True)
+12:     role = Column(String, default="student")
+```
+- Maps the Python `User` class directly to the PostgreSQL `users` database table, defining column types, constraints, and default values.
+
+---
+
+### File 8: [app/schemas/user.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/schemas/user.py)
+*Purpose: Pydantic schemas for request validation and response serialization.*
+
+```python
+1: from pydantic import BaseModel
+2: from typing import Optional
+3: 
+4: class UserBase(BaseModel):
+5:     email: str
+6:     is_active: Optional[bool] = True
+7:     role: Optional[str] = "student"
+8: 
+9: class UserCreate(UserBase):
+10:     password: str
+11: 
+12: class UserUpdate(BaseModel):
+13:     email: Optional[str] = None
+14:     password: Optional[str] = None
+15:     role: Optional[str] = None
+16:     is_active: Optional[str] = None
+17: 
+18: class User(UserBase):
+19:     id: int
+20: 
+21:     class Config:
+22:         from_attributes = True
+23: 
+24: class Token(BaseModel):
+25:     access_token: str
+26:     token_type: str
+27: 
+28: class TokenData(BaseModel):
+29:     user_id: Optional[str] = None
+```
+- **`UserBase`**: Shared user fields.
+- **`UserCreate`**: Schema for registration (`POST /signup`), requiring `password`.
+- **`User`**: Schema for API response payloads. Excludes `hashed_password` and includes `id`. Configured with `from_attributes = True` to parse SQLAlchemy objects directly.
+- **`Token`**: Response schema for `POST /login` returning `{ access_token, token_type }`.
+
+---
+
+### File 9: [app/services/auth_service.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/services/auth_service.py)
+*Purpose: Encapsulated business logic and database transaction handler.*
+
+```python
+1: from typing import Optional
+2: from sqlalchemy.orm import Session
+3: from fastapi import HTTPException, status
+4: from app.schemas.user import UserCreate
+5: from app.models.user import User
+6: from app.core.security import get_password_hash, verify_password
+7: 
+8: class AuthService:
+9:     @staticmethod
+10:     def get_user_by_email(db: Session, email: str) -> Optional[User]:
+11:         return db.query(User).filter(User.email == email).first()
+```
+- **Line 9–11**: `get_user_by_email()` queries the database for a user matching the given email.
+
+```python
+13:     @staticmethod
+14:     def create_user(db: Session, user_in: UserCreate) -> User:
+15:         existing_user = AuthService.get_user_by_email(db, email=user_in.email)
+16:         if existing_user:
+17:             raise HTTPException(
+18:                 status_code=status.HTTP_400_BAD_REQUEST,
+19:                 detail="Email already registered"
+20:             )
+21:         
+22:         hashed_pwd = get_password_hash(user_in.password)
+23:         db_user = User(
+24:             email=user_in.email,
+25:             hashed_password=hashed_pwd,
+26:             role=user_in.role or "student",
+27:             is_active=True
+28:         )
+29:         db.add(db_user)
+30:         db.commit()
+31:         db.refresh(db_user)
+32:         return db_user
+```
+- **Line 14–32**: `create_user()` checks for duplicate emails, hashes the raw password with `bcrypt`, constructs a `User` ORM object, commits it to Supabase PostgreSQL, refreshes `db_user` to populate `id`, and returns the instance.
+
+```python
+34:     @staticmethod
+35:     def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+36:         user = AuthService.get_user_by_email(db, email=email)
+37:         if not user:
+38:             return None
+39:         if not verify_password(password, user.hashed_password):
+40:             return None
+41:         return user
+```
+- **Line 34–41**: `authenticate_user()` fetches the user by email, verifies the plain text password against `hashed_password`, and returns the `User` object or `None`.
+
+---
+
+### File 10: [app/routers/auth.py](file:///home/dct/Desktop/Development/ApplyCM/backend/app/routers/auth.py)
+*Purpose: REST API router exposing signup, login, logout, and me endpoints.*
+
+```python
+1: from fastapi import APIRouter, Depends, HTTPException, status
+2: from fastapi.security import OAuth2PasswordRequestForm
+3: from sqlalchemy.orm import Session
+4: from app.dependencies import get_db, get_current_user
+5: from app.schemas.user import User, UserCreate, Token
+6: from app.models.user import User as UserModel
+7: from app.services.auth_service import AuthService
+8: from app.core.security import create_access_token
+9: 
+10: router = APIRouter(prefix="/auth", tags=["auth"])
+```
+- **Line 10**: Instantiates the router with `/auth` prefix (resolving to `/api/auth/...`).
+
+```python
+12: @router.post("/signup", response_model=User, status_code=status.HTTP_201_CREATED)
+13: def signup(user_in: UserCreate, db: Session = Depends(get_db)):
+14:     return AuthService.create_user(db=db, user_in=user_in)
+```
+- **Line 12–14**: `POST /api/auth/signup` receives `UserCreate` JSON, delegates creation to `AuthService.create_user()`, and returns `HTTP 201 Created` serialized via `User` schema (which automatically excludes `hashed_password`).
+
+```python
+16: @router.post("/login", response_model=Token)
+17: def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+18:     user = AuthService.authenticate_user(db=db, email=form_data.username, password=form_data.password)
+19:     if not user:
+20:         raise HTTPException(
+21:             status_code=status.HTTP_401_UNAUTHORIZED,
+22:             detail="Incorrect email or password",
+23:             headers={"WWW-Authenticate": "Bearer"},
+24:         )
+25:     
+26:     access_token = create_access_token(data={"sub": str(user.id)})
+27:     return {"access_token": access_token, "token_type": "bearer"}
+```
+- **Line 16–27**: `POST /api/auth/login` parses OAuth2 form data (`username`, `password`), authenticates credentials via `AuthService`, generates a signed JWT token containing `sub: str(user.id)`, and returns `{ "access_token": "...", "token_type": "bearer" }`.
+
+```python
+29: @router.post("/logout")
+30: def logout():
+31:     return {"message": "Successfully logged out. Please clear your token on the client side."}
+32: 
+33: @router.get("/me", response_model=User)
+34: def read_current_user(current_user: UserModel = Depends(get_current_user)):
+35:     return current_user
+```
+- **Line 29–31**: `POST /api/auth/logout` signals the frontend to clear its stored token.
+- **Line 33–35**: `GET /api/auth/me` is a protected endpoint guarded by `Depends(get_current_user)` returning the current user profile payload.
+
+---
+
+## 🔗 4. Frontend Integration Cheatsheet for SvelteKit
+
+To help your frontend team seamlessly connect to the backend:
+
+### 1. Base URL & API Client
+Set `PUBLIC_API_BASE_URL=http://localhost:8000` in `frontend/.env`.
+
+### 2. User Signup Request
+```typescript
+const response = await fetch('http://localhost:8000/api/auth/signup', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email: 'user@applycm.cm', password: 'mysecurepassword' })
+});
+const user = await response.json(); // { id: 1, email: "user@applycm.cm", role: "student", is_active: true }
+```
+
+### 3. User Login Request
+```typescript
+const formData = new URLSearchParams();
+formData.append('username', 'user@applycm.cm');
+formData.append('password', 'mysecurepassword');
+
+const response = await fetch('http://localhost:8000/api/auth/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: formData
+});
+const data = await response.json(); // { access_token: "eyJ...", token_type: "bearer" }
+
+// Save access_token to localStorage or Svelte store
+localStorage.setItem('token', data.access_token);
+```
+
+### 4. Authenticated Request (`GET /api/auth/me`)
+```typescript
+const token = localStorage.getItem('token');
+
+const response = await fetch('http://localhost:8000/api/auth/me', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+const profile = await response.json();
+```

@@ -1,30 +1,37 @@
 <script lang="ts">
-    let email = "";
-    let password = "";
-    let isLoading = false;
-    let errorMessage = "";
+    let email = $state("");
+    let password = $state("");
+    let isLoading = $state(false);
+    let errorMessage = $state("");
 
     async function login() {
         errorMessage = "";
         isLoading = true;
         try {
-            const response = await fetch("/api/login", {
+            const formData = new URLSearchParams();
+            formData.append("username", email);
+            formData.append("password", password);
+
+            const response = await fetch("http://127.0.0.1:8001/api/auth/login", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded",
                 },
-                body: JSON.stringify({ email, password }),
+                body: formData,
             });
 
             if (!response.ok) {
-                throw new Error("Login failed");
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || "Invalid email or password");
             }
 
-            // Handle successful login (e.g., redirect to dashboard)
+            const data = await response.json();
+            localStorage.setItem("access_token", data.access_token);
+            alert("Login successful!");
             window.location.href = "/dashboard";
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            errorMessage = "Invalid email or password. Please try again.";
+            errorMessage = error.message || "Invalid email or password. Please try again.";
         } finally {
             isLoading = false;
         }
