@@ -1,22 +1,27 @@
 from pydantic import BaseModel
 from typing import Optional
+from decimal import Decimal
+from uuid import UUID
+from datetime import datetime
 
 class ProgramBase(BaseModel):
-    name: str
-    description: Optional[str] = None
-    duration_years: Optional[int] = 3
+    field_of_study: str
+    tuition: Optional[Decimal] = None
+    admission_requirements: Optional[str] = None
 
 class ProgramCreate(ProgramBase):
-    school_id: int
+    school_id: UUID
 
 class ProgramUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    duration_years: Optional[int] = None
+    field_of_study: Optional[str] = None
+    tuition: Optional[Decimal] = None
+    admission_requirements: Optional[str] = None
 
 class Program(ProgramBase):
-    id: int
-    school_id: int
+    id: UUID
+    school_id: UUID
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+

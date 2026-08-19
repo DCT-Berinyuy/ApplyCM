@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	const API_BASE_URL = 'http://localhost:8000';
+	const API_BASE_URL = 'http://localhost:8001';
 
 	interface ApplicationSectionStatus {
 		key: string;
