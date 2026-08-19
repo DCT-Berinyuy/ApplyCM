@@ -350,19 +350,27 @@
 		box-shadow: 0 14px 28px -14px rgba(180, 71, 43, 0.6);
 	}
 	.btn-text {
-		background: #9e9a9a;
+		background:#9e9a96;
 		text-decoration: none;
 		font-weight: 500;
-		padding: 0.9rem 1.75rem;
 		color: 'black';
+		padding: 0.9rem 1.75rem;
 		border-radius:500px;
-		transition: background cubic-bezier(0.6, 0.04, 0.98, 0.335)
+		transition: background cubic-bezeir(0.6,0.04,0.98,0.335);
 	}
 	.btn-text:hover {
-		transform: translateX(3px);
-		transition:all 0.3s ease-in-out;
-		box-shadow: 0 14px 28px -14px rgba(180, 71, 43, 0.6);
-		
+		transform: translatex(3px);
+		transition: all 0.3s ease-in-out;
+		box-shadow: 0.14px 28px -14px rgba(180, 71, 43,0.6);
+
+
+	}
+	.hero-note {
+		margin-top: 2rem;
+		font-family: var(--font-mono);
+		font-size: 0.75rem;
+		color: var(--color-ink-soft);
+		letter-spacing: 0.03em;
 	}
 
 	/* Steps */
