@@ -1,16 +1,15 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
-from sqlalchemy.orm import relationship
+import uuid
+from sqlalchemy import Column, String, Text, Numeric, ForeignKey, DateTime, func
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.base_class import Base
 
 class Program(Base):
     __tablename__ = "programs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    school_id = Column(Integer, ForeignKey("schools.id"), nullable=False)
-    name = Column(String, index=True, nullable=False)
-    description = Column(Text, nullable=True)
-    duration_years = Column(Integer, default=3)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
+    school_id = Column(UUID(as_uuid=True), ForeignKey("schools.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_of_study = Column(String, index=True, nullable=False)
+    tuition = Column(Numeric(12, 2), nullable=True)
+    admission_requirements = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # TODO: Add relationships to school, applications, etc.
-    # school = relationship("School", back_populates="programs")
-    # applications = relationship("Application", back_populates="program")
