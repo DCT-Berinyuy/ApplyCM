@@ -1,15 +1,24 @@
-from sqlalchemy import Column, Integer, String, Boolean
-from sqlalchemy.orm import relationship
+import uuid
+from sqlalchemy import Column, String, Boolean, DateTime, func
+from sqlalchemy.dialects.postgresql import UUID
 from app.db.base_class import Base
+
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    role = Column(String, default="student") # e.g. student, admin, school_admin
+    role = Column(String, default="student")
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # TODO: Define relationship to StudentProfile or other entities
-    # profile = relationship("StudentProfile", back_populates="user", uselist=False)
+    @property
+    def hashed_password(self) -> str:
+        return self.password_hash
+
+    @hashed_password.setter
+    def hashed_password(self, value: str) -> None:
+        self.password_hash = value
+
