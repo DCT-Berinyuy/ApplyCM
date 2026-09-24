@@ -28,10 +28,39 @@ ApplyCM is a platform where Cameroonian students discover schools and apply to m
     cp .env.example .env
     # Edit .env with your local settings
     ```
-5.  Run the application:
+5.  Apply database migrations:
     ```bash
-    uvicorn app.main:app --reload
+    alembic upgrade head
     ```
+6.  Run the application (the frontend expects port 8001):
+    ```bash
+    uvicorn app.main:app --reload --port 8001
+    ```
+7.  Run the tests (they use a throwaway SQLite database, no Neon needed):
+    ```bash
+    python -m pytest
+    ```
+
+### Deploying (Render + Neon)
+
+New columns are added through Alembic migrations, so the migration must run
+against Neon on every deploy. Set Render's **Build Command** to:
+
+```bash
+pip install -r requirements.txt && alembic upgrade head
+```
+
+### Application profile API
+
+All routes need `Authorization: Bearer <token>` and act on the signed-in user.
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/api/students/me` | Full profile, including `completed_sections` (404 until first save) |
+| `PUT` | `/api/students/me/{section}` | Save one wizard section: `profile`, `contact`, `education`, `testing`, `activities`, `writing` |
+
+The first save of any section creates the profile. A section is complete once
+all its required fields are stored.
 
 ## Frontend Setup
 

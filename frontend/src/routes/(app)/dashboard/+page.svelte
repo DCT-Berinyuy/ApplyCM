@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import type { ProfileSection } from "$lib/api/profile";
+  import { isSectionComplete, loadProfile } from "$lib/stores/profile.svelte";
 
   const API_BASE_URL = "http://localhost:8001";
 
@@ -94,17 +96,16 @@
   }
 
   function getCompletedSections(sections: ApplicationSectionStatus[]): ApplicationSectionStatus[] {
-    if (typeof window === "undefined") return sections;
-    return sections.map((sec) => {
-      const isCompleteStored = localStorage.getItem(`section_${sec.key}_complete`);
-      return {
-        ...sec,
-        complete: isCompleteStored === "true" || sec.complete
-      };
-    });
+    return sections.map((sec) => ({
+      ...sec,
+      complete: sec.complete || isSectionComplete(sec.key as ProfileSection),
+    }));
   }
 
-  onMount(loadDashboard);
+  onMount(() => {
+    loadDashboard();
+    loadProfile();
+  });
 
   const visibleSections = $derived(
     getCompletedSections(
