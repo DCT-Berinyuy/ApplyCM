@@ -12,7 +12,7 @@
   let showDeleteModal = $state(false);
   let isDeleting = $state(false);
 
-  const APP_URL = "https://applycm.cm";
+  const APP_URL = "https://apply-cm.vercel.app";
 
   async function handlePasswordUpdate() {
     passwordSuccess = null;
@@ -326,6 +326,18 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
 
+  @media (max-width: 580px) {
+    .settings-page {
+      padding: 1.5rem 1rem 3rem;
+    }
+    .header h2 {
+      font-size: 1.5rem;
+    }
+    .card {
+      padding: 1.25rem;
+    }
+  }
+
   .card-header-icon {
     display: flex;
     align-items: center;
@@ -450,6 +462,7 @@
 
   .share-link-input {
     flex: 1;
+    min-width: 0;
     padding: 0.75rem 1rem;
     background: #f8fafc;
     border: 1px solid #cbd5e0;
@@ -457,11 +470,13 @@
     font-size: 0.95rem;
     color: #475569;
     font-weight: 500;
+    text-overflow: ellipsis;
   }
 
   .btn-share {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 0.5rem;
     background-color: #2563eb;
     color: white;
@@ -473,6 +488,13 @@
     cursor: pointer;
     transition: background-color 0.2s ease;
     white-space: nowrap;
+  }
+
+  @media (max-width: 580px) {
+    .share-box {
+      flex-direction: column;
+      align-items: stretch;
+    }
   }
 
   .btn-share:hover {
