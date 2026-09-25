@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { API_BASE_URL } from "$lib/config";
+  import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { loadProfile, saveSection } from "$lib/stores/profile.svelte";
+
   let firstName = $state("");
   let lastName = $state("");
   let email = $state("");
@@ -22,46 +25,33 @@
     "West"
   ];
 
+  onMount(async () => {
+    const profile = await loadProfile();
+    if (!profile) return;
+    firstName = profile.first_name ?? firstName;
+    lastName = profile.last_name ?? lastName;
+    email = profile.email ?? email;
+    phone = profile.phone ?? phone;
+    declaredState = profile.declared_state ?? declaredState;
+  });
+
   async function handleSubmit() {
     isSaving = true;
     saveSuccess = false;
     saveError = null;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/student-profile`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          phone,
-          email,
-          declaredState,
-          is_completed: true
-        }),
+      await saveSection("profile", {
+        first_name: firstName,
+        last_name: lastName,
+        email: email,
+        phone: phone,
+        declared_state: declaredState
       });
-
-      if (!res.ok) {
-        throw new Error(`Server returned status ${res.status}`);
-      }
-
-      const data = await res.json().catch(() => ({}));
-      console.log("Saved profile successfully:", data);
-
-      localStorage.setItem("section_profile_complete", "true");
       saveSuccess = true;
-      setTimeout(() => {
-        window.location.href = "/application/contact";
-      }, 1200);
-    } catch (err: any) {
-      console.error("Save profile failed, updating local state:", err);
-      localStorage.setItem("section_profile_complete", "true");
-      saveSuccess = true;
-      setTimeout(() => {
-        window.location.href = "/application/contact";
-      }, 1200);
+      setTimeout(() => goto("/application/contact"), 1200);
+    } catch (err) {
+      saveError = err instanceof Error ? err.message : "Could not save your details. Please try again.";
     } finally {
       isSaving = false;
     }

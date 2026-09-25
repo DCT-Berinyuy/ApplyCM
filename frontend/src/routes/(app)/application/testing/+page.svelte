@@ -1,41 +1,41 @@
 <script lang="ts">
-  import { API_BASE_URL } from "$lib/config";
+  import { onMount } from "svelte";
+  import { goto } from "$app/navigation";
+  import { loadProfile, saveSection } from "$lib/stores/profile.svelte";
+
   let oLevelPasses = $state("");
   let aLevelPoints = $state("");
   let englishTestType = $state("");
   let testScore = $state("");
   let isSaving = $state(false);
   let saveSuccess = $state(false);
+  let saveError = $state<string | null>(null);
+
+  onMount(async () => {
+    const profile = await loadProfile();
+    if (!profile) return;
+    oLevelPasses = profile.o_level_passes ?? oLevelPasses;
+    aLevelPoints = profile.a_level_points ?? aLevelPoints;
+    englishTestType = profile.english_test_type ?? englishTestType;
+    testScore = profile.english_test_score ?? testScore;
+  });
 
   async function handleSubmit() {
     isSaving = true;
     saveSuccess = false;
+    saveError = null;
 
     try {
-      await fetch(`${API_BASE_URL}/api/v1/student-profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          oLevelPasses,
-          aLevelPoints,
-          englishTestType,
-          testScore,
-          is_completed: true
-        }),
+      await saveSection("testing", {
+        o_level_passes: oLevelPasses,
+        a_level_points: aLevelPoints,
+        english_test_type: englishTestType,
+        english_test_score: testScore
       });
-
-      localStorage.setItem("section_testing_complete", "true");
       saveSuccess = true;
-      setTimeout(() => {
-        window.location.href = "/application/activities";
-      }, 1200);
+      setTimeout(() => goto("/application/activities"), 1200);
     } catch (err) {
-      console.error("Save testing details failed, setting local state:", err);
-      localStorage.setItem("section_testing_complete", "true");
-      saveSuccess = true;
-      setTimeout(() => {
-        window.location.href = "/application/activities";
-      }, 1200);
+      saveError = err instanceof Error ? err.message : "Could not save your details. Please try again.";
     } finally {
       isSaving = false;
     }
@@ -48,6 +48,12 @@
   {#if saveSuccess}
     <div class="alert-success" role="status">
       ✓ Testing details saved! Redirecting to Activities...
+    </div>
+  {/if}
+
+  {#if saveError}
+    <div class="alert-error" role="alert">
+      {saveError}
     </div>
   {/if}
 
@@ -121,6 +127,16 @@
     background-color: #e6fffa;
     border: 1px solid #319795;
     color: #234e52;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    font-weight: 500;
+  }
+
+  .alert-error {
+    background-color: #fff5f5;
+    border: 1px solid #feb2b2;
+    color: #9b2c2c;
     padding: 0.75rem 1rem;
     border-radius: 8px;
     margin-bottom: 1.5rem;
