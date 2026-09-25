@@ -2,8 +2,7 @@
   import { onMount } from "svelte";
   import type { ProfileSection } from "$lib/api/profile";
   import { isSectionComplete, loadProfile } from "$lib/stores/profile.svelte";
-
-  const API_BASE_URL = "http://localhost:8001";
+  import { API_BASE_URL } from "$lib/config";
 
   interface ApplicationSectionStatus {
     key: string;
@@ -345,6 +344,7 @@
     font-size: 1.8rem;
     font-weight: 700;
     color: #1a2b4a;
+    overflow-wrap: break-word;
   }
   .hero-illustration {
     flex-shrink: 0;
@@ -354,6 +354,32 @@
     margin: 2rem 0 1rem;
     font-size: 2rem;
     font-weight: 700;
+  }
+
+  @media (max-width: 580px) {
+    .dashboard-page {
+      padding: 1.5rem 1rem 3rem;
+    }
+    .hero {
+      flex-direction: column;
+      text-align: center;
+      gap: 0.75rem;
+      padding: 1.5rem 1.25rem;
+    }
+    .hero-illustration {
+      width: 100px;
+      height: auto;
+    }
+    .hero h1 {
+      font-size: 1.35rem;
+    }
+    .page-title {
+      margin: 1.5rem 0 1rem;
+      font-size: 1.5rem;
+    }
+    .application-body {
+      gap: 1.5rem;
+    }
   }
 
   .card {

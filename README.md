@@ -77,6 +77,9 @@ all its required fields are stored.
     cp .env.example .env
     # Edit .env with your local settings
     ```
+    `PUBLIC_API_BASE_URL` picks the backend. Without it, the frontend uses the
+    deployed Render API (`https://applycm-backend.onrender.com`); the example
+    file points to a local backend on port 8001.
 4.  Run the development server:
     ```bash
     npm run dev

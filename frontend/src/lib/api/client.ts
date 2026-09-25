@@ -1,6 +1,4 @@
-import { env } from "$env/dynamic/public";
-
-export const API_BASE_URL = (env.PUBLIC_API_BASE_URL || "http://localhost:8001").replace(/\/+$/, "");
+import { API_BASE_URL } from "$lib/config";
 
 const TOKEN_KEY = "access_token";
 
