@@ -60,7 +60,9 @@ All routes need `Authorization: Bearer <token>` and act on the signed-in user.
 | `PUT` | `/api/students/me/{section}` | Save one wizard section: `profile`, `contact`, `education`, `testing`, `activities`, `writing` |
 
 The first save of any section creates the profile. A section is complete once
-all its required fields are stored.
+all its required fields are stored. See
+[docs/application-profile-walkthrough.md](docs/application-profile-walkthrough.md)
+for how the wizard is wired to the database.
 
 ## Frontend Setup
 
