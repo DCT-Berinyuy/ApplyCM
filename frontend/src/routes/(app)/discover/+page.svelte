@@ -2,235 +2,81 @@
   import { onMount } from "svelte";
   import { API_BASE_URL } from "$lib/config";
 
+  interface Program {
+    id: string;
+    school_id: string;
+    field_of_study: string;
+    degree_type: string | null;
+    tuition_fee: string | null;
+    duration: string | null;
+    language_of_instruction: string | null;
+    delivery_mode: string | null;
+    admission_requirements: string | null;
+    required_documents: string | null;
+    application_deadline: string | null;
+    class_size: number | null;
+    description: string | null;
+  }
+
   interface School {
     id: string;
     name: string;
-    city: string | null;
-    arrondissement: string | null;
+    location: string | null;
     description: string | null;
-    tuition?: string | null;
-    deadline?: string | null;
-    programs?: string | null;
+    website_url: string | null;
+    logo_url: string | null;
+    contact_email: string | null;
+    application_deadline: string | null;
+    rolling_admission: boolean;
     created_at?: string;
+    programs?: Program[];
   }
-
-  const DEFAULT_CAMEROON_SCHOOLS: School[] = [
-    {
-      id: "s1-yaounde1",
-      name: "University of Yaoundé I",
-      city: "Yaoundé",
-      arrondissement: "Yaounde I (Ngoa-Ekellé)",
-      description:
-        "Cameroon's first public state university established in 1962, hosting faculties of Science, Arts, Medicine (FMSB), and Higher Teacher Training College (ENS).",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Medicine (FMSB), Computer Science, Mathematics, Physics, Biochemistry, Bilingual Letters, Higher Teacher Education (ENS).",
-    },
-    {
-      id: "s2-yaounde2",
-      name: "University of Yaoundé II (Soa)",
-      city: "Yaoundé",
-      arrondissement: "Soa (Yaoundé Suburbs)",
-      description:
-        "First public state university for Law, Economics, Political Science, International Relations (IRIC), and Information & Communication (ESSTIC).",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Law & Political Science, Economics & Management, International Relations (IRIC), Journalism & Mass Communication (ESSTIC).",
-    },
-    {
-      id: "s3-douala",
-      name: "University of Douala",
-      city: "Douala",
-      arrondissement: "Douala V (Ange Raphaël / Ndogbong)",
-      description:
-        "Major public state university situated in Cameroon's economic capital, renowned for ENSET technical education, ESSEC business school, and FGI industrial engineering.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Industrial Engineering (FGI), Business & Management (ESSEC), Technical Teacher Education (ENSET), Applied Physics & Chemistry.",
-    },
-    {
-      id: "s4-buea",
-      name: "University of Buea",
-      city: "Buea",
-      arrondissement: "Buea Central (Molyko)",
-      description:
-        "First Anglo-Saxon public state university in Cameroon, famous for ASTI translation school, College of Technology (COT), and Health Sciences.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "September 30, 2026",
-      programs:
-        "Software Engineering, Medicine & Nursing, Computer Science, Journalism & Mass Communication, Translation & Interpretation (ASTI).",
-    },
-    {
-      id: "s5-bamenda",
-      name: "University of Bamenda",
-      city: "Bamenda",
-      arrondissement: "Bambili",
-      description:
-        "Premier Anglo-Saxon public state university in the North West Region featuring Higher Teacher Training (HTTC/HTTTC), National Polytechnic (ENSPB), and Health Sciences.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "September 30, 2026",
-      programs:
-        "Transport & Logistics (ENSPB), Mechanical & Computer Engineering, Teacher Education (HTTC/HTTTC), Medical Laboratory Science.",
-    },
-    {
-      id: "s6-dschang",
-      name: "University of Dschang",
-      city: "Dschang",
-      arrondissement: "Dschang Central",
-      description:
-        "Renowned national agricultural research state university featuring FASA (Agronomy) and Bandjoun Technology Institute (IUT) with multi-campus presence.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Agronomy & Forestry (FASA), Electrical & Telecom Engineering (IUT Bandjoun), Environmental Science, Fine Arts (Foumban).",
-    },
-    {
-      id: "s7-ngaoundere",
-      name: "University of Ngaoundere",
-      city: "Ngaoundéré",
-      arrondissement: "Ngaoundere III (Dang)",
-      description:
-        "Major public state university in the Adamawa Region, world-renowned for ENSAI (Agro-Industrial Food Sciences) and IUT Ngaoundéré technology institute.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Agro-Industrial Food Engineering (ENSAI), Chemical Engineering, Veterinary Medicine, Economics & Management, Law.",
-    },
-    {
-      id: "s8-maroua",
-      name: "University of Maroua",
-      city: "Maroua",
-      arrondissement: "Maroua I (Kongola)",
-      description:
-        "Public state university in the Far North Region specializing in Sahelian agriculture, renewable energy engineering, and Higher Teacher Training (ENS Maroua).",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Renewable Energy Engineering, Sahelian Agriculture, Teacher Education (ENS Maroua), Environmental Science & Heritage.",
-    },
-    {
-      id: "s9-ebolowa",
-      name: "University of Ebolowa",
-      city: "Ebolowa",
-      arrondissement: "Ebolowa I (Mvila)",
-      description:
-        "Public state university in the South Region specializing in Agriculture, Wood & Forestry Technology, Autonomous Engineering, and Social Sciences.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Agricultural Technology, Wood & Forestry Engineering, Environmental Studies, Economic & Social Sciences.",
-    },
-    {
-      id: "s10-bertoua",
-      name: "University of Bertoua",
-      city: "Bertoua",
-      arrondissement: "Bertoua I (Lom-et-Djérem)",
-      description:
-        "Public state university in the East Region focusing on Mining Engineering, Natural Resources Management, Agriculture, and Teacher Training (ENS Bertoua).",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Mining & Geology Engineering, Natural Resources Management, Agricultural Sciences, Teacher Education (ENS Bertoua).",
-    },
-    {
-      id: "s11-garoua",
-      name: "University of Garoua",
-      city: "Garoua",
-      arrondissement: "Garoua I (Bénoué)",
-      description:
-        "Public state university in the North Region specializing in Medicine & Biomedical Sciences, Veterinary Medicine, Cotton & Textile Technology, and Law.",
-      tuition: "50,000 FCFA / year (State registration fee)",
-      deadline: "October 15, 2026",
-      programs:
-        "Medicine & Biomedical Sciences, Veterinary Medicine, Textile & Cotton Engineering, Law & Political Science.",
-    },
-    {
-      id: "s12-ictu",
-      name: "The ICT University",
-      city: "Yaoundé",
-      arrondissement: "Yaoundé IV (Dispensaire Messassi)",
-      description:
-        "Top US-accredited private university in Central Africa delivering ICT-driven education, research, and innovation.",
-      tuition: "365,000 FCFA / semester (~730,000 FCFA / year)",
-      deadline: "September 30, 2026 (October Intake)",
-      programs:
-        "B.Sc. Computer Science, Software Engineering, Information Systems & Networking, Business Management, Banking & Finance.",
-    },
-    {
-      id: "s13-ucac",
-      name: "Catholic University of Central Africa (UCAC)",
-      city: "Yaoundé",
-      arrondissement: "Yaoundé VI (Nkolbisson)",
-      description:
-        "Prestigious private Catholic university offering recognized programs in Social Sciences, Nursing, Management, and Ethics.",
-      tuition: "750,000 - 1,200,000 FCFA / year",
-      deadline: "July 31, 2026",
-      programs:
-        "Business Administration, Nursing & Health Care Management, Human Resource Management, Law & Political Science.",
-    },
-  ];
 
   let schools = $state<School[]>([]);
   let loading = $state(true);
   let loadError = $state<string | null>(null);
   let searchQuery = $state("");
-  let selectedCity = $state("All");
+  let selectedFilter = $state("All");
   let expandedSchoolId = $state<string | null>(null);
   let favoriteIds = $state<string[]>([]);
 
-  const CITIES = [
-    "All",
-    "Yaoundé",
-    "Douala",
-    "Buea",
-    "Bamenda",
-    "Dschang",
-    "Ngaoundéré",
-    "Maroua",
-    "Ebolowa",
-    "Bertoua",
-    "Garoua",
-  ];
+  const DEGREE_FILTERS = ["All", "Bachelor", "Engineering", "Master", "Licence Pro", "HND"];
 
   async function fetchSchools() {
     loading = true;
     loadError = null;
     try {
       const res = await fetch(`${API_BASE_URL}/api/schools`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          schools = data.map((item: School) => {
-            const match = DEFAULT_CAMEROON_SCHOOLS.find(
-              (d) => d.name.toLowerCase() === item.name.toLowerCase(),
-            );
-            return {
-              ...item,
-              tuition: item.tuition || match?.tuition || null,
-              deadline: item.deadline || match?.deadline || null,
-              programs: item.programs || match?.programs || null,
-              arrondissement:
-                item.arrondissement || match?.arrondissement || null,
-              description: item.description || match?.description || null,
-            };
-          });
-        } else {
-          schools = DEFAULT_CAMEROON_SCHOOLS;
-        }
-      } else {
-        schools = DEFAULT_CAMEROON_SCHOOLS;
+      if (!res.ok) {
+        throw new Error(`Failed to load schools: HTTP ${res.status}`);
       }
-    } catch (err) {
-      console.warn(
-        "Backend GET /api/schools request failed, using default schools data:",
-        err,
-      );
-      schools = DEFAULT_CAMEROON_SCHOOLS;
+      const data: School[] = await res.json();
+      schools = data;
+
+      // Fetch programs for each school
+      for (const school of schools) {
+        fetchProgramsForSchool(school.id);
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch schools from backend API:", err);
+      loadError = err.message || "Failed to load universities from server.";
     } finally {
       loading = false;
+    }
+  }
+
+  async function fetchProgramsForSchool(schoolId: string) {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/schools/${schoolId}/programs`);
+      if (res.ok) {
+        const progs: Program[] = await res.json();
+        const index = schools.findIndex((s) => s.id === schoolId);
+        if (index !== -1) {
+          schools[index] = { ...schools[index], programs: progs };
+        }
+      }
+    } catch (err) {
+      console.warn(`Could not load programs for school ${schoolId}:`, err);
     }
   }
 
@@ -273,6 +119,10 @@
       expandedSchoolId = null;
     } else {
       expandedSchoolId = schoolId;
+      const school = schools.find((s) => s.id === schoolId);
+      if (school && !school.programs) {
+        fetchProgramsForSchool(schoolId);
+      }
     }
   }
 
@@ -283,24 +133,34 @@
 
   const filteredSchools = $derived(
     schools.filter((s) => {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.toLowerCase().trim();
+      const hasProgramsMatch = s.programs?.some((p) =>
+        p.field_of_study.toLowerCase().includes(query) ||
+        (p.degree_type && p.degree_type.toLowerCase().includes(query)) ||
+        (p.description && p.description.toLowerCase().includes(query))
+      );
+
       const matchesSearch =
+        !query ||
         s.name.toLowerCase().includes(query) ||
-        (s.city && s.city.toLowerCase().includes(query)) ||
-        (s.arrondissement && s.arrondissement.toLowerCase().includes(query)) ||
-        (s.programs && s.programs.toLowerCase().includes(query));
-      const matchesCity = selectedCity === "All" || s.city === selectedCity;
-      return matchesSearch && matchesCity;
-    }),
+        (s.location && s.location.toLowerCase().includes(query)) ||
+        (s.description && s.description.toLowerCase().includes(query)) ||
+        hasProgramsMatch;
+
+      const matchesDegree =
+        selectedFilter === "All" ||
+        s.programs?.some((p) => p.degree_type === selectedFilter);
+
+      return matchesSearch && matchesDegree;
+    })
   );
 </script>
 
 <div class="discover-page">
   <header class="header">
-    <h2>Discover Universities</h2>
+    <h2>Discover Universities & Higher Institutes</h2>
     <p class="subtitle">
-      Explore all 11 public state universities and top higher education
-      institutions across Cameroon
+      Browse verified higher institutions, accredited degree programs, tuition fees, and admission requirements in Cameroon.
     </p>
   </header>
 
@@ -317,7 +177,7 @@
       </svg>
       <input
         type="text"
-        placeholder="Search by university name, city, program, or arrondissement..."
+        placeholder="Search by school name, location, degree type, or field of study..."
         bind:value={searchQuery}
       />
       {#if searchQuery}
@@ -325,14 +185,15 @@
       {/if}
     </div>
 
-    <div class="city-chips">
-      {#each CITIES as city}
+    <div class="degree-chips">
+      <span class="chips-label">Filter by Degree:</span>
+      {#each DEGREE_FILTERS as filter}
         <button
           class="chip"
-          class:active={selectedCity === city}
-          onclick={() => (selectedCity = city)}
+          class:active={selectedFilter === filter}
+          onclick={() => (selectedFilter = filter)}
         >
-          {city}
+          {filter}
         </button>
       {/each}
     </div>
@@ -341,21 +202,25 @@
   {#if loading}
     <div class="loading-state">
       <div class="spinner"></div>
-      <p>Loading universities from backend...</p>
+      <p>Loading schools and programs from database...</p>
+    </div>
+  {:else if loadError}
+    <div class="error-state">
+      <p>⚠️ {loadError}</p>
+      <button class="btn-reset" onclick={fetchSchools}>Retry</button>
     </div>
   {:else if filteredSchools.length === 0}
     <div class="empty-state">
-      <p>No universities found matching "{searchQuery}".</p>
+      <p>No universities found matching your filter.</p>
       <button
         class="btn-reset"
         onclick={() => {
           searchQuery = "";
-          selectedCity = "All";
+          selectedFilter = "All";
         }}>Reset Filters</button
       >
     </div>
   {:else}
-    <!-- 1 School Per Row Layout -->
     <div class="schools-grid">
       {#each filteredSchools as school (school.id)}
         {@const isFav = favoriteIds.includes(school.id)}
@@ -370,23 +235,24 @@
             if (e.key === "Enter" || e.key === " ") toggleExpand(school.id);
           }}
         >
-          <!-- Simple Default Card Header -->
+          <!-- Card Header / Primary Info -->
           <div class="card-main">
             <div class="info-primary">
-              <h3 class="school-name">{school.name}</h3>
-              {#if school.city}
-                <div class="city-badge">
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    fill="currentColor"
-                  >
+              <div class="name-row">
+                <h3 class="school-name">{school.name}</h3>
+                {#if school.rolling_admission}
+                  <span class="badge-rolling">⚡ Rolling Admission</span>
+                {/if}
+              </div>
+
+              {#if school.location}
+                <div class="location-badge">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
                     <path
                       d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"
                     />
                   </svg>
-                  <span>{school.city}</span>
+                  <span>{school.location}</span>
                 </div>
               {/if}
             </div>
@@ -422,56 +288,101 @@
             </button>
           </div>
 
-          <!-- Reveal Indicator -->
-          <div class="reveal-hint">
-            <span
-              >{isExpanded
-                ? "Hide information ▲"
-                : "Tap to view details ▾"}</span
-            >
+          <!-- Description preview -->
+          {#if school.description}
+            <p class="short-description">{school.description}</p>
+          {/if}
+
+          <!-- Quick badges -->
+          <div class="meta-row">
+            {#if school.application_deadline}
+              <span class="meta-pill">📅 Deadline: {school.application_deadline}</span>
+            {/if}
+            {#if school.programs && school.programs.length > 0}
+              <span class="meta-pill programs-count">🎓 {school.programs.length} Programs Available</span>
+            {/if}
           </div>
 
-          <!-- Expanded Details Section (On Tap / Click) -->
+          <!-- Reveal Indicator -->
+          <div class="reveal-hint">
+            <span>{isExpanded ? "Hide programs & details ▲" : "View degree programs & requirements ▼"}</span>
+          </div>
+
+          <!-- Expanded Details Section -->
           {#if isExpanded}
-            <div class="card-details">
-              {#if school.arrondissement}
-                <div class="detail-row">
-                  <span class="detail-label">Arrondissement / Campus:</span>
-                  <span class="detail-val">{school.arrondissement}</span>
-                </div>
-              {/if}
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <div class="card-details" role="region" aria-label="Institution details" onclick={(e) => e.stopPropagation()} onkeydown={(e) => e.stopPropagation()}>
+              <!-- Contact & Link info -->
+              <div class="contact-grid">
+                {#if school.website_url}
+                  <a href={school.website_url} target="_blank" rel="noreferrer" class="link-pill">
+                    🌐 Visit Website ↗
+                  </a>
+                {/if}
+                {#if school.contact_email}
+                  <a href="mailto:{school.contact_email}" class="link-pill">
+                    ✉️ {school.contact_email}
+                  </a>
+                {/if}
+              </div>
 
-              {#if school.tuition}
-                <div class="detail-row">
-                  <span class="detail-label">Tuition Fees:</span>
-                  <span class="detail-val highlight-val"
-                    >💰 {school.tuition}</span
-                  >
-                </div>
-              {/if}
+              <!-- Programs Section -->
+              <div class="programs-container">
+                <h4 class="programs-header">Offered Programs</h4>
 
-              {#if school.deadline}
-                <div class="detail-row">
-                  <span class="detail-label">Admission Deadline:</span>
-                  <span class="detail-val highlight-val"
-                    >📅 {school.deadline}</span
-                  >
-                </div>
-              {/if}
+                {#if !school.programs}
+                  <p class="loading-progs">Loading programs...</p>
+                {:else if school.programs.length === 0}
+                  <p class="empty-progs">No programs listed yet for this institution.</p>
+                {:else}
+                  <div class="programs-list">
+                    {#each school.programs as prog}
+                      <div class="program-item">
+                        <div class="prog-top">
+                          <h5 class="prog-title">{prog.field_of_study}</h5>
+                          {#if prog.degree_type}
+                            <span class="degree-badge">{prog.degree_type}</span>
+                          {/if}
+                        </div>
 
-              {#if school.programs}
-                <div class="detail-row">
-                  <span class="detail-label">Key Programs Offered:</span>
-                  <span class="detail-val">{school.programs}</span>
-                </div>
-              {/if}
+                        <div class="prog-specs">
+                          {#if prog.tuition_fee}
+                            <span class="spec-tag tuition-tag">💰 {prog.tuition_fee}</span>
+                          {/if}
+                          {#if prog.duration}
+                            <span class="spec-tag">⏱️ {prog.duration}</span>
+                          {/if}
+                          {#if prog.language_of_instruction}
+                            <span class="spec-tag">🗣️ {prog.language_of_instruction}</span>
+                          {/if}
+                          {#if prog.delivery_mode}
+                            <span class="spec-tag">🏫 {prog.delivery_mode}</span>
+                          {/if}
+                          {#if prog.class_size}
+                            <span class="spec-tag">👥 Capacity: {prog.class_size}</span>
+                          {/if}
+                        </div>
 
-              {#if school.description}
-                <div class="detail-row">
-                  <span class="detail-label">Description:</span>
-                  <p class="description-text">{school.description}</p>
-                </div>
-              {/if}
+                        {#if prog.description}
+                          <p class="prog-desc">{prog.description}</p>
+                        {/if}
+
+                        {#if prog.admission_requirements}
+                          <div class="prog-meta-block">
+                            <strong>Requirements:</strong> {prog.admission_requirements}
+                          </div>
+                        {/if}
+
+                        {#if prog.required_documents}
+                          <div class="prog-meta-block">
+                            <strong>Documents:</strong> {prog.required_documents}
+                          </div>
+                        {/if}
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
             </div>
           {/if}
         </div>
@@ -493,19 +404,21 @@
     font-size: 2rem;
     font-weight: 700;
     margin: 0 0 0.5rem;
-    color: #1a2b4a;
+    color: #0f172a;
   }
+
   .subtitle {
-    margin: 0 0 2rem;
     color: #64748b;
     font-size: 1rem;
+    margin-bottom: 2rem;
+    line-height: 1.5;
   }
 
   .filter-section {
+    margin-bottom: 2rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
-    margin-bottom: 2rem;
+    gap: 1rem;
   }
 
   .search-box {
@@ -517,30 +430,23 @@
   .search-icon {
     position: absolute;
     left: 1rem;
-    pointer-events: none;
   }
 
   .search-box input {
     width: 100%;
-    padding: 0.85rem 2.5rem 0.85rem 2.8rem;
-    border: 1px solid #cbd5e0;
-    border-radius: 50px;
-    font-size: 1rem;
-    background-color: #ffffff;
-    transition:
-      border-color 0.2s ease,
-      box-shadow 0.2s ease;
-  }
-
-  .search-box input::placeholder {
-    color: #94a3b8;
-    font-style: italic;
+    padding: 0.85rem 2.8rem 0.85rem 3rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    background: #fff;
+    color: #1e293b;
+    outline: none;
+    transition: border-color 0.2s;
   }
 
   .search-box input:focus {
-    border-color: #2563eb !important;
-    outline: none !important;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
   }
 
   .btn-clear {
@@ -553,43 +459,50 @@
     font-size: 1rem;
   }
 
-  .city-chips {
+  .degree-chips {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 0.5rem;
   }
 
+  .chips-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    margin-right: 0.25rem;
+  }
+
   .chip {
-    padding: 0.4rem 1rem;
-    border-radius: 50px;
-    border: 1px solid #cbd5e0;
-    background: #ffffff;
-    color: #4a5568;
-    font-size: 0.875rem;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    color: #475569;
+    padding: 0.35rem 0.85rem;
+    border-radius: 9999px;
+    font-size: 0.85rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.2s;
   }
 
   .chip:hover {
-    background: #f1f5f9;
-    border-color: #94a3b8;
+    background: #e2e8f0;
   }
 
   .chip.active {
     background: #2563eb;
-    color: #ffffff;
+    color: #fff;
     border-color: #2563eb;
   }
 
   .loading-state,
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+  .empty-state,
+  .error-state {
+    text-align: center;
     padding: 4rem 1rem;
-    color: #64748b;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px dashed #cbd5e1;
   }
 
   .spinner {
@@ -598,8 +511,8 @@
     border: 3px solid #e2e8f0;
     border-top-color: #2563eb;
     border-radius: 50%;
+    margin: 0 auto 1rem;
     animation: spin 0.8s linear infinite;
-    margin-bottom: 1rem;
   }
 
   @keyframes spin {
@@ -610,164 +523,263 @@
 
   .btn-reset {
     margin-top: 1rem;
-    padding: 0.5rem 1.25rem;
     background: #2563eb;
-    color: white;
+    color: #fff;
     border: none;
-    border-radius: 50px;
+    padding: 0.5rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
     cursor: pointer;
   }
 
-  /* 1 School Per Row Layout */
   .schools-grid {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.25rem;
   }
 
-  /* Simple Basic Card Styling */
   .university-card {
     background: #ffffff;
     border: 1px solid #e2e8f0;
-    border-radius: 14px;
-    padding: 1.25rem 1.5rem;
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-    display: flex;
-    flex-direction: column;
-    user-select: none;
+    transition: all 0.2s ease-in-out;
+    outline: none;
   }
 
   .university-card:hover {
-    border-color: #93c5fd;
-    box-shadow: 0 8px 20px rgba(37, 99, 235, 0.1);
+    border-color: #cbd5e1;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
     transform: translateY(-2px);
   }
 
   .university-card.expanded {
-    border-color: #2563eb;
-    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+    border-color: #93c5fd;
+    box-shadow: 0 10px 30px rgba(37, 99, 235, 0.08);
   }
 
   .card-main {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
-    gap: 1rem;
+    align-items: flex-start;
   }
 
-  .info-primary {
+  .name-row {
     display: flex;
-    flex-direction: column;
-    gap: 0.4rem;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
   }
 
   .school-name {
-    font-size: 1.15rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    color: #1a2b4a;
+    color: #0f172a;
     margin: 0;
-    line-height: 1.3;
   }
 
-  .city-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
-    background-color: #eff6ff;
-    color: #2563eb;
-    padding: 0.25rem 0.65rem;
-    border-radius: 50px;
-    font-size: 0.8rem;
+  .badge-rolling {
+    background: #ecfdf5;
+    color: #059669;
+    font-size: 0.75rem;
     font-weight: 600;
-    width: fit-content;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    border: 1px solid #a7f3d0;
+  }
+
+  .location-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-top: 0.35rem;
   }
 
   .btn-favorite {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.4rem;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    flex-shrink: 0;
-    transition: all 0.15s ease;
+    transition: transform 0.15s;
   }
 
   .btn-favorite:hover {
-    background: #fee2e2;
-    border-color: #fca5a5;
-    transform: scale(1.1);
+    transform: scale(1.15);
   }
 
-  .btn-favorite.favorited {
-    background: #fef2f2;
-    border-color: #fca5a5;
+  .short-description {
+    color: #475569;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    margin: 0.75rem 0 0.5rem;
+  }
+
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+
+  .meta-pill {
+    font-size: 0.8rem;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    padding: 0.2rem 0.65rem;
+    border-radius: 8px;
+    font-weight: 500;
+  }
+
+  .meta-pill.programs-count {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+    font-weight: 600;
   }
 
   .reveal-hint {
     margin-top: 1rem;
-    padding-top: 0.75rem;
-    border-top: 1px dashed #e2e8f0;
+    text-align: right;
+  }
+
+  .reveal-hint span {
     font-size: 0.8rem;
-    color: #64748b;
-    font-weight: 500;
-    text-align: center;
-  }
-
-  /* Expanded Information Revealed On Tap */
-  .card-details {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    animation: fadeIn 0.25s ease;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  .detail-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-
-  .detail-label {
-    font-size: 0.775rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: #64748b;
-  }
-
-  .detail-val {
-    font-size: 0.9rem;
-    color: #1a2b4a;
+    color: #2563eb;
     font-weight: 600;
   }
 
-  .highlight-val {
-    color: #1d4ed8;
+  .card-details {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #f1f5f9;
+    cursor: default;
   }
 
-  .description-text {
+  .contact-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: #2563eb;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    padding: 0.35rem 0.85rem;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background 0.15s;
+  }
+
+  .link-pill:hover {
+    background: #dbeafe;
+  }
+
+  .programs-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 0.85rem;
+  }
+
+  .programs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .program-item {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: left;
+  }
+
+  .prog-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .prog-title {
+    font-size: 0.98rem;
+    font-weight: 600;
+    color: #0f172a;
     margin: 0;
-    font-size: 0.875rem;
-    line-height: 1.45;
+  }
+
+  .degree-badge {
+    background: #e0e7ff;
+    color: #3730a3;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+  }
+
+  .prog-specs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.5rem 0;
+  }
+
+  .spec-tag {
+    font-size: 0.8rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  .spec-tag.tuition-tag {
+    background: #fef3c7;
+    border-color: #fde68a;
+    color: #92400e;
+    font-weight: 600;
+  }
+
+  .prog-desc {
+    font-size: 0.88rem;
     color: #475569;
+    line-height: 1.45;
+    margin: 0.35rem 0 0.5rem;
+  }
+
+  .prog-meta-block {
+    font-size: 0.82rem;
+    color: #475569;
+    margin-top: 0.25rem;
+  }
+
+  .prog-meta-block strong {
+    color: #1e293b;
+  }
+
+  .loading-progs,
+  .empty-progs {
+    font-size: 0.9rem;
+    color: #64748b;
+    font-style: italic;
   }
 </style>
