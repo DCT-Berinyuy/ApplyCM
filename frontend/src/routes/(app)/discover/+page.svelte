@@ -1,6 +1,7 @@
 ﻿<script lang="ts">
   import { onMount } from "svelte";
   import { API_BASE_URL } from "$lib/config";
+  import { apiFetch } from "$lib/api/client";
 
   interface Program {
     id: string;
@@ -96,38 +97,45 @@
     }
   }
 
-  function loadFavorites() {
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem("favorite_school_ids");
-        if (stored) {
-          favoriteIds = JSON.parse(stored);
-        }
-      } catch (err) {
-        favoriteIds = [];
-      }
+  async function loadFavorites() {
+    try {
+      const favSchools = await apiFetch<Array<{ id: string }>>("/api/favorites");
+      favoriteIds = favSchools.map((s) => s.id);
+    } catch (err) {
+      console.warn("Could not load favorites from API:", err);
+      favoriteIds = [];
     }
   }
 
-  function toggleFavorite(schoolId: string, event: MouseEvent) {
+  async function toggleFavorite(schoolId: string, event: MouseEvent) {
     event.stopPropagation();
-    if (favoriteIds.includes(schoolId)) {
+    const isCurrentlyFav = favoriteIds.includes(schoolId);
+
+    // Optimistic UI update
+    if (isCurrentlyFav) {
       favoriteIds = favoriteIds.filter((id) => id !== schoolId);
     } else {
       favoriteIds = [...favoriteIds, schoolId];
     }
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("favorite_school_ids", JSON.stringify(favoriteIds));
-      const favObjects = schools.filter((s) => favoriteIds.includes(s.id));
-      localStorage.setItem("favorite_schools_list", JSON.stringify(favObjects));
+    try {
+      if (isCurrentlyFav) {
+        await apiFetch(`/api/favorites/${schoolId}`, { method: "DELETE" });
+      } else {
+        await apiFetch("/api/favorites", {
+          method: "POST",
+          body: JSON.stringify({ school_id: schoolId }),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to update favorite on server:", err);
+      // Revert optimistic update on failure
+      if (isCurrentlyFav) {
+        favoriteIds = [...favoriteIds, schoolId];
+      } else {
+        favoriteIds = favoriteIds.filter((id) => id !== schoolId);
+      }
     }
-
-    fetch(`${API_BASE_URL}/api/favorites`, {
-      method: favoriteIds.includes(schoolId) ? "POST" : "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ school_id: schoolId }),
-    }).catch(() => {});
   }
 
   function openSchoolDetail(schoolId: string) {
