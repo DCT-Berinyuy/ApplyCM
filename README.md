@@ -50,6 +50,26 @@ against Neon on every deploy. Set Render's **Build Command** to:
 pip install -r requirements.txt && alembic upgrade head
 ```
 
+### Application emails (Brevo)
+
+Submitting an application emails a PDF to each chosen university, sent through
+[Brevo](https://www.brevo.com)'s HTTPS API. Render's free tier blocks SMTP, so
+the API is used instead. Set these on Render (and in `backend/.env` to send for
+real locally):
+
+| Variable | Value |
+|----------|-------|
+| `EMAIL_BACKEND` | `brevo` (default). Use `console` locally to only log emails |
+| `BREVO_API_KEY` | Brevo → SMTP & API → API keys |
+| `EMAIL_FROM_ADDRESS` | A sender verified in Brevo → Senders, Domains & Dedicated IPs |
+| `EMAIL_FROM_NAME` | Display name, default `ApplyCM` |
+| `EMAIL_REDIRECT_TO` | Optional. Sends every email here instead (real recipient is shown in the subject). Use while testing |
+
+Replies from a university go to the student's email (`Reply-To`). Without a
+key, `POST /api/submissions` returns 503 and nothing is recorded. A free Gmail
+sender works for testing, but for reliable delivery to universities, add and
+authenticate your own domain in Brevo (DKIM/DMARC).
+
 ### Application profile API
 
 All routes need `Authorization: Bearer <token>` and act on the signed-in user.
@@ -58,6 +78,9 @@ All routes need `Authorization: Bearer <token>` and act on the signed-in user.
 |--------|------|---------|
 | `GET` | `/api/students/me` | Full profile, including `completed_sections` (404 until first save) |
 | `PUT` | `/api/students/me/{section}` | Save one wizard section: `profile`, `contact`, `education`, `testing`, `activities`, `writing` |
+| `GET` | `/api/students/me/application.pdf` | The application profile as a PDF (the same file universities receive) |
+| `POST` | `/api/submissions` | `{"school_ids": [...]}`: email the PDF to those favorite universities, plus a copy to the student |
+| `GET` | `/api/submissions` | Per-university submission status (`sending`, `sent`, `failed`) |
 
 The first save of any section creates the profile. A section is complete once
 all its required fields are stored. See

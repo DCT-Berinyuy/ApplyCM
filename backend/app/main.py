@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, students, schools, programs, applications, favorites
+from app.routers import auth, students, schools, programs, applications, favorites, submissions
 from app.db.database import engine
 from app.db.base import Base
 
@@ -34,6 +34,7 @@ app.include_router(schools.router, prefix="/api")
 app.include_router(programs.router, prefix="/api")
 app.include_router(applications.router, prefix="/api")
 app.include_router(favorites.router, prefix="/api")
+app.include_router(submissions.router, prefix="/api")
 
 @app.get("/")
 def read_root():

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { apiFetch } from "$lib/api/client";
   import SchoolDetail, { type School, type Program } from "$lib/components/SchoolDetail.svelte";
+  import SubmitApplicationPanel from "$lib/components/SubmitApplicationPanel.svelte";
 
   interface FavoriteItem {
     id: string;
@@ -190,6 +191,8 @@
       </a>
     </div>
   {:else}
+    <SubmitApplicationPanel schools={favoriteSchools} />
+
     <!-- Two-column Common App "My Colleges" layout -->
     <div class="two-column-layout">
       <!-- Left Panel (fixed width, ~280px): "My Universities" -->
