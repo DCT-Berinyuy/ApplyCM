@@ -1,6 +1,9 @@
-import os
+﻿import os
+from pathlib import Path
 from pydantic_settings import BaseSettings
 from typing import Optional
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/applycm")
@@ -10,9 +13,8 @@ class Settings(BaseSettings):
     STORAGE_KEY: Optional[str] = os.getenv("STORAGE_KEY", None)
 
     model_config = {
-        "env_file": ".env",
+        "env_file": [str(BASE_DIR / ".env"), ".env"],
         "extra": "ignore"
     }
 
 settings = Settings()
-

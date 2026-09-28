@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { ProfileSection } from "$lib/api/profile";
   import { isSectionComplete, loadProfile } from "$lib/stores/profile.svelte";
-  import { API_BASE_URL } from "$lib/config";
+  import { apiFetch } from "$lib/api/client";
 
   interface ApplicationSectionStatus {
     key: string;
@@ -71,7 +71,7 @@
   let greeting = $derived(
     new Date().getHours() < 12
       ? "Good morning"
-      : new Date().getHours() < 16
+      : new Date().getHours() < 17
         ? "Good afternoon"
         : "Good evening",
   );
@@ -80,12 +80,7 @@
     loading = true;
     loadError = null;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/dashboard/summary`, {
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error(`Request failed (${res.status})`);
-      summary = await res.json();
+      summary = await apiFetch<DashboardSummary>("/api/students/me/summary");
     } catch (err) {
       loadError =
         err instanceof Error ? err.message : "Could not load your dashboard.";
