@@ -1,5 +1,7 @@
 <script lang="ts">
+// Declaring a constant array
 	const steps = [
+		// Declaring objects in the array of size 4 and index 3
 		{
 			number: "01",
 			title: "Build your profile",
@@ -27,12 +29,13 @@
 
 	function handleSearch(event: Event) {
 		event.preventDefault();
-		if (searchQuery.trim() === "") return;
+		if (searchQuery.trim() === "") 
+		return;
 		console.log("Searching for:", searchQuery);
 	}
 
 	function handleScroll() {
-		scrolled = window.scrollY > 8;
+		scrolled = window.scrollY > 18;
 	}
 </script>
 
@@ -49,7 +52,7 @@
 <svelte:window onscroll={handleScroll} />
 
 <div class="app-shell">
-	<header class="site-header" class:scrolled>
+	<header class="site-header" >
 		<a href="/" class="logo">Apply<span>CM</span></a>
 
 		<form class="search-form" onsubmit={handleSearch}>
@@ -77,7 +80,7 @@
 			</p>
 			<div class="hero-actions">
 				<a href="/signup" class="btn-primary">Create your profile</a>
-				<a href="/dashboard" class="btn-text">I already have an account</a>
+				<a href="/login" class="btn-text">I already have an account</a>
 			</div>
 		</section>
 
@@ -189,10 +192,6 @@
 		background: var(--color-paper);
 		border-bottom: 1px solid var(--color-line);
 		transition: box-shadow 0.3s ease;
-	}
-
-	.site-header.scrolled {
-		box-shadow: 0 8px 20px -14px rgba(32, 26, 20, 0.35);
 	}
 
 	.logo {

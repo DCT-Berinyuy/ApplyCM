@@ -1,3 +1,4 @@
+alembic==1.20.0
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
@@ -52,3 +53,6 @@ urllib3==2.7.0
 uvicorn==0.52.1
 watchfiles==1.2.0
 websockets==17.0.1
+charset-normalizer==3.5.1
+pillow==12.3.0
+reportlab==5.0.1
