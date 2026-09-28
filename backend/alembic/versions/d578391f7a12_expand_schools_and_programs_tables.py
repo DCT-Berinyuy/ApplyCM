@@ -1,10 +1,10 @@
-\"\"\"expand schools and programs tables
+"""expand schools and programs tables
 
 Revision ID: d578391f7a12
 Revises: c467286e6e24
 Create Date: 2026-09-26 22:15:00.000000
 
-\"\"\"
+"""
 from alembic import op
 import sqlalchemy as sa
 
