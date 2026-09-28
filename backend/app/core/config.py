@@ -12,6 +12,16 @@ class Settings(BaseSettings):
     STORAGE_URL: Optional[str] = os.getenv("STORAGE_URL", None)
     STORAGE_KEY: Optional[str] = os.getenv("STORAGE_KEY", None)
 
+    # Application emails. "brevo" sends through Brevo's HTTPS API (Render's free
+    # tier blocks SMTP ports); "console" only logs, for local development.
+    EMAIL_BACKEND: str = os.getenv("EMAIL_BACKEND", "brevo")
+    BREVO_API_KEY: Optional[str] = os.getenv("BREVO_API_KEY", None)
+    EMAIL_FROM_ADDRESS: Optional[str] = os.getenv("EMAIL_FROM_ADDRESS", None)
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "ApplyCM")
+    # When set, every outgoing email goes to this address instead of the real
+    # recipient (named in the subject). Use it while testing with real schools.
+    EMAIL_REDIRECT_TO: Optional[str] = os.getenv("EMAIL_REDIRECT_TO", None)
+
     model_config = {
         "env_file": [str(BASE_DIR / ".env"), ".env"],
         "extra": "ignore"

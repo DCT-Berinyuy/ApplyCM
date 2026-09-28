@@ -5,6 +5,8 @@ import tempfile
 _DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 os.environ["DATABASE_URL"] = f"sqlite:///{_DB_FILE.name}"
 os.environ["JWT_SECRET"] = "test-secret-not-used-anywhere-else-0123456789"
+os.environ["EMAIL_BACKEND"] = "console"
+os.environ.pop("EMAIL_REDIRECT_TO", None)
 
 import pytest
 from fastapi.testclient import TestClient
