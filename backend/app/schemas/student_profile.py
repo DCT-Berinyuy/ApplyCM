@@ -178,3 +178,30 @@ class StudentProfile(BaseModel):
             for section, fields in SECTION_REQUIRED_FIELDS.items()
             if all(getattr(self, name) not in (None, "") for name in fields)
         ]
+
+
+class ApplicationSectionStatus(BaseModel):
+    key: str
+    label: str
+    href: str
+    complete: bool
+
+
+class DashboardSummaryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    firstName: str = ""
+    first_name: Optional[str] = None
+    applicationSections: List[ApplicationSectionStatus] = Field(default_factory=list)
+    application_sections: Optional[List[ApplicationSectionStatus]] = None
+    overallProgress: int = 0
+    overall_progress: Optional[int] = None
+    universitiesOnList: int = 0
+    universities_on_list: Optional[int] = None
+    universitiesInProgress: int = 0
+    universities_in_progress: Optional[int] = None
+    favoritedUniversities: int = 0
+    favorited_universities: Optional[int] = None
+    requiredDocumentsOutstanding: int = 0
+    required_documents_outstanding: Optional[int] = None
+

@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user
-from app.schemas.student_profile import SECTION_SCHEMAS, StudentProfile, StudentProfileCreate, StudentProfileUpdate
+from app.schemas.student_profile import (
+    SECTION_SCHEMAS,
+    StudentProfile,
+    StudentProfileCreate,
+    StudentProfileUpdate,
+    DashboardSummaryResponse,
+)
 from app.models.user import User
 from app.services.student_service import StudentService
 
@@ -14,6 +20,31 @@ def get_my_profile(current_user: User = Depends(get_current_user), db: Session =
     if not profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
     return profile
+
+@router.get("/me/summary", response_model=DashboardSummaryResponse)
+def get_my_dashboard_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns dashboard summary for current student:
+    - firstName (derived from student profile or user)
+    - applicationSections (Profile, Contact, Education, Activities, Writing with completion status)
+    - overallProgress (percentage complete)
+    - universitiesOnList, universitiesInProgress, favoritedUniversities
+    """
+    return StudentService.get_dashboard_summary(db, user_id=current_user.id)
+
+@router.get("/me/progress", response_model=DashboardSummaryResponse)
+def get_my_application_progress(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns application section completion progress and overall percentage.
+    """
+    return StudentService.get_dashboard_summary(db, user_id=current_user.id)
+
 
 @router.post("/", response_model=StudentProfile, status_code=status.HTTP_201_CREATED)
 def create_profile(profile_in: StudentProfileCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

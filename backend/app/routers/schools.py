@@ -10,7 +10,8 @@ from app.services.program_service import ProgramService
 
 router = APIRouter(prefix="/schools", tags=["schools"])
 
-@router.get("/", response_model=List[School])
+@router.get("", response_model=List[School])
+@router.get("/", response_model=List[School], include_in_schema=False)
 def list_schools(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return SchoolService.list_schools(db, skip=skip, limit=limit)
 
