@@ -1,7 +1,8 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
+from app.schemas.program import Program
 
 class SchoolBase(BaseModel):
     name: str
@@ -38,6 +39,7 @@ class SchoolUpdate(BaseModel):
 class School(SchoolBase):
     id: UUID
     created_at: Optional[datetime] = None
+    programs: Optional[List[Program]] = []
 
     class Config:
         from_attributes = True
