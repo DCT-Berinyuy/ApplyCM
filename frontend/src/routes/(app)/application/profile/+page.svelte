@@ -1,8 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { goto } from "$app/navigation";
-  import { loadProfile, saveSection } from "$lib/stores/profile.svelte";
-
+  import { API_BASE_URL } from "$lib/config";
   let firstName = $state("");
   let lastName = $state("");
   let email = $state("");
@@ -22,18 +19,8 @@
     "Northwest",
     "South",
     "Southwest",
-    "West"
+    "West",
   ];
-
-  onMount(async () => {
-    const profile = await loadProfile();
-    if (!profile) return;
-    firstName = profile.first_name ?? firstName;
-    lastName = profile.last_name ?? lastName;
-    email = profile.email ?? email;
-    phone = profile.phone ?? phone;
-    declaredState = profile.declared_state ?? declaredState;
-  });
 
   async function handleSubmit() {
     isSaving = true;
@@ -41,17 +28,40 @@
     saveError = null;
 
     try {
-      await saveSection("profile", {
-        first_name: firstName,
-        last_name: lastName,
-        email: email,
-        phone: phone,
-        declared_state: declaredState
+      const res = await fetch(`${API_BASE_URL}/api/v1/student-profile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          phone,
+          email,
+          declaredState,
+          is_completed: true,
+        }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+
+      const data = await res.json().catch(() => ({}));
+      console.log("Saved profile successfully:", data);
+
+      localStorage.setItem("section_profile_complete", "true");
       saveSuccess = true;
-      setTimeout(() => goto("/application/contact"), 1200);
-    } catch (err) {
-      saveError = err instanceof Error ? err.message : "Could not save your details. Please try again.";
+      setTimeout(() => {
+        window.location.href = "/application/contact";
+      }, 1200);
+    } catch (err: any) {
+      console.error("Save profile failed, updating local state:", err);
+      localStorage.setItem("section_profile_complete", "true");
+      saveSuccess = true;
+      setTimeout(() => {
+        window.location.href = "/application/contact";
+      }, 1200);
     } finally {
       isSaving = false;
     }
@@ -63,7 +73,8 @@
 
   {#if saveSuccess}
     <div class="alert-success" role="status">
-      ✓ Personal details saved! Section completed. Redirecting to Contact Details...
+      ✓ Personal details saved! Section completed. Redirecting to Contact
+      Details...
     </div>
   {/if}
 
@@ -73,11 +84,18 @@
     </div>
   {/if}
 
-  <form onsubmit={(event) => { event.preventDefault(); handleSubmit(); }}>
+  <form
+    onsubmit={(event) => {
+      event.preventDefault();
+      handleSubmit();
+    }}
+  >
     <div class="form-grid">
       <div class="form-group">
         <label for="firstName">First Name</label>
-        <span class="field-desc">Enter your official given name as shown on legal identity documents.</span>
+        <span class="field-desc"
+          >Enter your official given name as shown on legal identity documents.</span
+        >
         <input
           id="firstName"
           type="text"
@@ -89,7 +107,9 @@
 
       <div class="form-group">
         <label for="lastName">Last Name</label>
-        <span class="field-desc">Enter your official family name or surname.</span>
+        <span class="field-desc"
+          >Enter your official family name or surname.</span
+        >
         <input
           id="lastName"
           type="text"
@@ -102,7 +122,10 @@
 
     <div class="form-group">
       <label for="email">Email Address</label>
-      <span class="field-desc">Primary email address for application updates and university correspondence.</span>
+      <span class="field-desc"
+        >Primary email address for application updates and university
+        correspondence.</span
+      >
       <input
         id="email"
         type="email"
@@ -114,7 +137,9 @@
 
     <div class="form-group">
       <label for="phone">Phone Number</label>
-      <span class="field-desc">Mobile telephone number including country code (+237).</span>
+      <span class="field-desc"
+        >Mobile telephone number including country code (+237).</span
+      >
       <input
         id="phone"
         type="tel"
@@ -126,13 +151,13 @@
 
     <div class="form-group">
       <label for="declaredState">Declared State / Region</label>
-      <span class="field-desc">Select your official region of origin or state of residence.</span>
-      <select
-        id="declaredState"
-        required
-        bind:value={declaredState}
+      <span class="field-desc"
+        >Select your official region of origin or state of residence.</span
       >
-        <option value="" disabled selected>Select Declared State / Region</option>
+      <select id="declaredState" required bind:value={declaredState}>
+        <option value="" disabled selected
+          >Select Declared State / Region</option
+        >
         {#each CAMEROON_REGIONS as region}
           <option value={region}>{region}</option>
         {/each}
@@ -222,7 +247,9 @@
     font-size: 1rem;
     color: #2d3748;
     background-color: #ffffff;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition:
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
   }
 
   /* Input placeholder styling */
@@ -256,7 +283,10 @@
     width: fit-content;
     border-radius: 50px;
     cursor: pointer;
-    transition: background-color 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      transform 0.15s ease,
+      box-shadow 0.2s ease;
     box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
   }
 

@@ -12,6 +12,10 @@ class SchoolBase(BaseModel):
     contact_email: Optional[str] = None
     application_deadline: Optional[str] = None
     rolling_admission: Optional[bool] = False
+    institution_type: Optional[str] = None
+    city: Optional[str] = None
+    data_source_url: Optional[str] = None
+    last_verified_at: Optional[datetime] = None
 
 class SchoolCreate(SchoolBase):
     pass
@@ -25,6 +29,11 @@ class SchoolUpdate(BaseModel):
     contact_email: Optional[str] = None
     application_deadline: Optional[str] = None
     rolling_admission: Optional[bool] = None
+    institution_type: Optional[str] = None
+    city: Optional[str] = None
+    data_source_url: Optional[str] = None
+    last_verified_at: Optional[datetime] = None
+
 
 class School(SchoolBase):
     id: UUID

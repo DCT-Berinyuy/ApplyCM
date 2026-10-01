@@ -18,4 +18,9 @@ class School(Base):
     rolling_admission = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    programs = relationship("Program", back_populates="school", cascade="all, delete-orphan")
+    institution_type = Column(String(50), nullable=True)
+    city = Column(String(100), index=True, nullable=True)
+    data_source_url = Column(String, nullable=True)
+    last_verified_at = Column(DateTime(timezone=True), nullable=True)
+
+    programs = relationship("Program", back_populates="school", cascade="all, delete-orphan")
