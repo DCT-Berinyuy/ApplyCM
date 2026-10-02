@@ -50,5 +50,5 @@ def pytest_sessionfinish(session, exitstatus):
     engine.dispose()
     try:
         os.unlink(_DB_FILE.name)
-    except Exception:
+    except (PermissionError, OSError):
         pass
