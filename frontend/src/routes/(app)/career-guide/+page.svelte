@@ -28,6 +28,7 @@
     matched_target_field: string;
     is_within_budget: boolean;
     budget_fit_score: number;
+    other_programs?: string[];
   }
 
   interface RecommendedField {
@@ -215,9 +216,20 @@
 
   const filteredPrograms = $derived(() => {
     if (!results) return [];
-    if (activeFieldTab === "ALL") return results.all_matching_programs;
-    const fieldObj = results.top_fields.find(f => f.field_name === activeFieldTab);
-    return fieldObj ? fieldObj.programs : [];
+    const progs = activeFieldTab === "ALL"
+      ? results.all_matching_programs
+      : (results.top_fields.find(f => f.field_name === activeFieldTab)?.programs || []);
+
+    // Ensure every school appears only once
+    const seenSchools = new Set<string>();
+    const deduplicated: MatchedProgram[] = [];
+    for (const p of progs) {
+      if (!seenSchools.has(p.school_id)) {
+        seenSchools.add(p.school_id);
+        deduplicated.push(p);
+      }
+    }
+    return deduplicated;
   });
 </script>
 
@@ -613,6 +625,13 @@
                     <span class="tag-field">{prog.matched_target_field}</span>
                     <span class="tag-duration">⏱ {prog.duration || '3 yrs'}</span>
                   </div>
+
+                  {#if prog.other_programs && prog.other_programs.length > 0}
+                    <div class="other-progs-pill">
+                      <span class="other-progs-label">Also offers:</span>
+                      <span class="other-progs-list">{prog.other_programs.join(' • ')}</span>
+                    </div>
+                  {/if}
 
                   {#if prog.description}
                     <p class="prog-snippet">{prog.description}</p>
@@ -1569,6 +1588,32 @@
     font-size: 0.78rem;
     color: #475569;
     margin-bottom: 14px;
+  }
+
+  .other-progs-pill {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.78rem;
+    color: #166534;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .other-progs-label {
+    font-weight: 700;
+    color: #15803d;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+  }
+
+  .other-progs-list {
+    color: #166534;
+    font-weight: 600;
   }
 
   .prog-footer {

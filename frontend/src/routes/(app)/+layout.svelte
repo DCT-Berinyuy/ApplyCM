@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from "$app/state";
+	import Logo from "$lib/components/Logo.svelte";
 
 	let { children } = $props();
 
@@ -39,11 +40,8 @@
 			<span>Menu</span>
 		</button>
 
-		<a class="logo" href="/dashboard">
-			<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-				<path d="M4 20 L12 4 L20 20 Z" fill="none" stroke="#2563eb" stroke-width="2" />
-			</svg>
-			<span>ApplyCM</span>
+		<a class="logo mobile-logo" href="/dashboard" aria-label="ApplyCM Dashboard">
+			<Logo size={24} textColor="#0f172a" />
 		</a>
 
 		<button class="icon-button" aria-label="Help">
@@ -61,11 +59,8 @@
 	{/if}
 
 	<nav class="sidebar" class:open={mobileMenuOpen}>
-		<a class="logo desktop-logo" href="/dashboard">
-			<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
-				<path d="M4 20 L12 4 L20 20 Z" fill="none" stroke="#2563eb" stroke-width="2.5" />
-			</svg>
-			<span>ApplyCM</span>
+		<a class="logo desktop-logo" href="/dashboard" aria-label="ApplyCM Dashboard">
+			<Logo size={32} textColor="#ffffff" />
 		</a>
 
 		<ul>
@@ -112,11 +107,8 @@
 		padding: 2rem 1rem;
 	}
 	.logo {
-		display: flex;
+		display: inline-flex;
 		align-items: center;
-		gap: 0.5rem;
-		font-size: 1.5rem;
-		font-weight: bold;
 		margin-bottom: 2rem;
 		text-decoration: none;
 		color: inherit;
@@ -182,8 +174,6 @@
 		}
 		.mobile-topbar .logo {
 			margin: 0;
-			font-size: 1.1rem;
-			color: #1a2b4a;
 		}
 		.icon-button {
 			display: flex;
