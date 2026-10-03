@@ -30,24 +30,355 @@
     contact_email: string | null;
     application_deadline: string | null;
     rolling_admission: boolean;
+    institution_type?: string | null;
+    city?: string | null;
+    data_source_url?: string | null;
+    last_verified_at?: string | null;
     created_at?: string;
     programs?: Program[];
   }
 
-  let schools = $state<School[]>([]);
+  // Verified Fallback Metadata Map for Yaoundé higher education institutions
+  // Ensures UI operates correctly even if connected to older backend builds lacking recent migrations/schema fields
+  const VERIFIED_SCHOOL_METADATA: Record<string, { institution_type: string; city: string }> = {
+    "École Nationale Supérieure des Postes, des Télécommunications et des TIC (SUP'PTIC)": { institution_type: "public", city: "Yaoundé" },
+    "Université Catholique d'Afrique Centrale (UCAC)": { institution_type: "ipes", city: "Yaoundé" },
+    "PKFokam Institute of Excellence": { institution_type: "ipes", city: "Yaoundé" },
+    "Institut Universitaire Siantou (IUS)": { institution_type: "iup", city: "Yaoundé" },
+    "IUSTY (Institut Universitaire et Strategique de l'Estuaire)": { institution_type: "iup", city: "Yaoundé" },
+    "Messassi Institute of Science and Technology (MIST)": { institution_type: "ipes", city: "Yaoundé" },
+    "National Advanced School of Engineering (Polytech Yaounde)": { institution_type: "public", city: "Yaoundé" },
+    "The ICT University": { institution_type: "ipes", city: "Yaoundé" },
+    "Université de Yaoundé I (UY1)": { institution_type: "public", city: "Yaoundé" },
+    "Université de Yaoundé II (UY2)": { institution_type: "public", city: "Yaoundé" },
+    "Institut des Relations Internationales du Cameroun (IRIC)": { institution_type: "public", city: "Yaoundé" },
+    "École Supérieure des Sciences et Techniques de l'Information et de la Communication (ESSTIC)": { institution_type: "public", city: "Yaoundé" },
+    "École Nationale Supérieure des Travaux Publics (ENSTP)": { institution_type: "public", city: "Yaoundé" },
+    "Institut Saint Jean (ISJ)": { institution_type: "ipes", city: "Yaoundé" },
+    "Institut Universitaire Agenla Academy": { institution_type: "iup", city: "Yaoundé" },
+  };
+
+  // State
+  let allSchools = $state<School[]>([]);
   let loading = $state(true);
   let loadError = $state<string | null>(null);
-  let searchQuery = $state("");
-  let selectedFilter = $state("All");
   let selectedSchoolId = $state<string | null>(null);
   let favoriteIds = $state<string[]>([]);
   let logoErrors = $state<Record<string, boolean>>({});
 
-  const selectedSchool = $derived(
-    schools.find((s) => s.id === selectedSchoolId) || null
+  // Filter state
+  let searchQuery = $state("");
+  let selectedInstitutionType = $state("All"); // All, Public, IPES, IUP
+  let selectedCity = $state("");
+  let selectedField = $state("");
+  let selectedDegree = $state("All"); // All, Bachelor, Engineering, Master, BTS, Doctorat
+  let minTuition = $state<number | string>("");
+  let maxTuition = $state<number | string>("");
+  let includeUnlistedTuition = $state(false);
+  let selectedLanguage = $state("All"); // All, English, French, Bilingual
+  let selectedDeliveryMode = $state("All"); // All, On-Campus, Hybrid
+
+  // UI state
+  let showFiltersPanel = $state(false);
+  let serverDebounceTimeout: any = null;
+
+  // Normalization helper (case & accent insensitive)
+  function normalizeText(text: string | null | undefined): string {
+    if (!text) return "";
+    return text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
+
+  function extractTuitionNumber(tuitionStr: string | null | undefined): number | null {
+    if (!tuitionStr) return null;
+    const digits = tuitionStr.replace(/[^0-9]/g, "");
+    if (!digits) return null;
+    const num = parseInt(digits, 10);
+    return isNaN(num) ? null : num;
+  }
+
+  function enrichSchool(school: School): School {
+    const meta = VERIFIED_SCHOOL_METADATA[school.name];
+    return {
+      ...school,
+      institution_type: school.institution_type || meta?.institution_type || "ipes",
+      city: school.city || meta?.city || "Yaoundé",
+    };
+  }
+
+  function getSchoolTuitionSummary(school: School): string | null {
+    const fees = (school.programs || [])
+      .map((p) => ({
+        num: extractTuitionNumber(p.tuition_fee),
+        raw: p.tuition_fee,
+      }))
+      .filter((item): item is { num: number; raw: string } => item.num !== null);
+
+    if (fees.length === 0) return null;
+
+    const minItem = fees.reduce((prev, curr) => (curr.num < prev.num ? curr : prev), fees[0]);
+    const maxItem = fees.reduce((prev, curr) => (curr.num > prev.num ? curr : prev), fees[0]);
+
+    if (minItem.num === maxItem.num) {
+      if (minItem.num === 50000) return "50,000 FCFA / yr (State)";
+      return `${minItem.num.toLocaleString()} FCFA / yr`;
+    }
+    return `${minItem.num.toLocaleString()} – ${maxItem.num.toLocaleString()} FCFA / yr`;
+  }
+
+  // Filter Options & Presets
+  const INSTITUTION_TYPES = ["All", "Public", "IPES", "IUP"];
+  const DEGREE_TYPES = [
+    { label: "All Degrees", value: "All" },
+    { label: "Bachelor / Licence", value: "Bachelor" },
+    { label: "Engineering (Ingénieur)", value: "Engineering" },
+    { label: "Master / MBA", value: "Master" },
+    { label: "BTS / HND", value: "BTS" },
+    { label: "Doctorate (Medicine/PhD)", value: "Doctorat" },
+  ];
+  const CITY_PRESETS = ["All", "Yaoundé", "Douala", "Buea", "Centre"];
+  const LANGUAGE_OPTIONS = [
+    { label: "All Languages", value: "All" },
+    { label: "English", value: "English" },
+    { label: "French", value: "French" },
+    { label: "Bilingual (FR/EN)", value: "Bilingual" },
+  ];
+  const DELIVERY_OPTIONS = [
+    { label: "All Modes", value: "All" },
+    { label: "On-Campus", value: "On-Campus" },
+    { label: "Hybrid", value: "Hybrid" },
+  ];
+  const TUITION_PRESETS = [
+    { label: "All", max: "" },
+    { label: "≤ 100k FCFA (State)", max: 100000 },
+    { label: "≤ 500k FCFA", max: 500000 },
+    { label: "≤ 800k FCFA", max: 800000 },
+    { label: "≤ 1.2M FCFA", max: 1200000 },
+  ];
+  const FIELD_SUGGESTIONS = [
+    "Computer Science",
+    "Software Engineering",
+    "Medicine & Healthcare",
+    "Civil Engineering",
+    "Law & Political Science",
+    "Economics & Management",
+    "Telecommunications",
+    "Journalism & Media",
+  ];
+
+  // Active filter count computation
+  const activeFiltersCount = $derived(
+    (selectedInstitutionType !== "All" ? 1 : 0) +
+    (selectedCity.trim() !== "" && selectedCity !== "All" ? 1 : 0) +
+    (selectedField.trim() !== "" ? 1 : 0) +
+    (selectedDegree !== "All" ? 1 : 0) +
+    (minTuition !== "" && Number(minTuition) > 0 ? 1 : 0) +
+    (maxTuition !== "" && Number(maxTuition) > 0 ? 1 : 0) +
+    (includeUnlistedTuition ? 1 : 0) +
+    (selectedLanguage !== "All" ? 1 : 0) +
+    (selectedDeliveryMode !== "All" ? 1 : 0)
   );
 
-  const DEGREE_FILTERS = ["All", "Bachelor", "Engineering", "Master", "Licence Pro", "HND"];
+  // Reactive Client-Side Filtering Engine
+  // Evaluates every filter criterion with AND logic across all loaded institutions
+  const filteredSchools = $derived.by(() => {
+    const filterState = {
+      searchQuery: searchQuery.trim(),
+      institutionType: selectedInstitutionType,
+      city: selectedCity.trim(),
+      fieldOfStudy: selectedField.trim(),
+      degreeType: selectedDegree,
+      minTuition: minTuition !== "" && !isNaN(Number(minTuition)) ? Number(minTuition) : null,
+      maxTuition: maxTuition !== "" && !isNaN(Number(maxTuition)) ? Number(maxTuition) : null,
+      includeUnlistedTuition,
+      language: selectedLanguage,
+      deliveryMode: selectedDeliveryMode,
+      totalLoaded: allSchools.length,
+    };
+
+    console.log("Applying Discover filters:", filterState);
+
+    const normSearch = normalizeText(filterState.searchQuery);
+    const normType = filterState.institutionType.toLowerCase();
+    const normCity = normalizeText(filterState.city);
+    const normField = normalizeText(filterState.fieldOfStudy);
+    const normDeg = filterState.degreeType;
+    const minT = filterState.minTuition;
+    const maxT = filterState.maxTuition;
+    const normLang = filterState.language.toLowerCase();
+    const normMode = filterState.deliveryMode.toLowerCase();
+
+    return allSchools.filter((school) => {
+      // 1. Institution Type (Public, IPES, IUP)
+      if (normType !== "all") {
+        const schoolType = (school.institution_type || "").toLowerCase();
+        if (schoolType !== normType) return false;
+      }
+
+      // 2. City / Region
+      if (normCity && normCity !== "all") {
+        const schoolCity = normalizeText(school.city);
+        const schoolLoc = normalizeText(school.location);
+        if (!schoolCity.includes(normCity) && !schoolLoc.includes(normCity)) {
+          return false;
+        }
+      }
+
+      // 3. Field of Study (matches programs, supports English/French aliases like Computer/Software/Informatique)
+      if (normField) {
+        const isComp =
+          normField.includes("comput") ||
+          normField.includes("softw") ||
+          normField.includes("informati") ||
+          normField.includes("cyber");
+
+        const progs = school.programs || [];
+        const hasMatchingProg = progs.some((p) => {
+          const pf = normalizeText(p.field_of_study);
+          const pd = normalizeText(p.description);
+          if (pf.includes(normField) || pd.includes(normField)) return true;
+          if (isComp) {
+            return (
+              pf.includes("comput") ||
+              pf.includes("softw") ||
+              pf.includes("informati") ||
+              pf.includes("cyber") ||
+              pd.includes("comput") ||
+              pd.includes("softw") ||
+              pd.includes("informati") ||
+              pd.includes("cyber")
+            );
+          }
+          return false;
+        });
+        if (!hasMatchingProg) return false;
+      }
+
+      // 4. Degree Type
+      if (normDeg !== "All") {
+        const d = normalizeText(normDeg);
+        const progs = school.programs || [];
+        const hasMatchingDegree = progs.some((p) => {
+          const deg = normalizeText(p.degree_type);
+          if (d.includes("bachelor") || d.includes("licence")) {
+            return (
+              deg.includes("bachelor") ||
+              deg.includes("licence") ||
+              deg.includes("bsc") ||
+              deg.includes("ll.b")
+            );
+          }
+          if (d.includes("master") || d.includes("mba")) {
+            return (
+              deg.includes("master") ||
+              deg.includes("mba") ||
+              deg.includes("dipes ii")
+            );
+          }
+          if (d.includes("engineer") || d.includes("ingenieur")) {
+            return deg.includes("engineer") || deg.includes("ingenieur");
+          }
+          if (d.includes("bts") || d.includes("hnd")) {
+            return (
+              deg.includes("bts") ||
+              deg.includes("hnd") ||
+              deg.includes("technicien")
+            );
+          }
+          if (d.includes("doctor") || d.includes("phd") || d.includes("med")) {
+            return (
+              deg.includes("doctor") ||
+              deg.includes("phd") ||
+              deg.includes("medecine") ||
+              deg.includes("pharmacie")
+            );
+          }
+          return deg.includes(d);
+        });
+        if (!hasMatchingDegree) return false;
+      }
+
+      // 5. Tuition Range
+      if (minT !== null || maxT !== null) {
+        const fees = (school.programs || [])
+          .map((p) => extractTuitionNumber(p.tuition_fee))
+          .filter((n): n is number => n !== null);
+
+        if (fees.length === 0) {
+          if (!includeUnlistedTuition) return false;
+        } else {
+          const hasMatchingFee = fees.some((fee) => {
+            if (minT !== null && fee < minT) return false;
+            if (maxT !== null && fee > maxT) return false;
+            return true;
+          });
+          if (!hasMatchingFee) return false;
+        }
+      }
+
+      // 6. Language of Instruction
+      if (normLang !== "all") {
+        const progs = school.programs || [];
+        const hasMatchingLang = progs.some((p) => {
+          const pl = normalizeText(p.language_of_instruction);
+          if (normLang === "english") {
+            return pl.includes("english") || pl.includes("bilingual");
+          }
+          if (normLang === "french") {
+            return pl.includes("french") || pl.includes("francais") || pl.includes("bilingual");
+          }
+          if (normLang === "bilingual") {
+            return pl.includes("bilingual");
+          }
+          return pl.includes(normLang);
+        });
+        if (!hasMatchingLang) return false;
+      }
+
+      // 7. Delivery Mode
+      if (normMode !== "all") {
+        const progs = school.programs || [];
+        const hasMatchingMode = progs.some((p) => {
+          const pm = normalizeText(p.delivery_mode);
+          return pm.includes(normMode);
+        });
+        if (!hasMatchingMode) return false;
+      }
+
+      // 8. General search keyword (school name, location, description, or program info)
+      if (normSearch) {
+        const sName = normalizeText(school.name);
+        const sLoc = normalizeText(school.location);
+        const sDesc = normalizeText(school.description);
+        const sCity = normalizeText(school.city);
+        const matchSchoolInfo =
+          sName.includes(normSearch) ||
+          sLoc.includes(normSearch) ||
+          sDesc.includes(normSearch) ||
+          sCity.includes(normSearch);
+
+        if (matchSchoolInfo) return true;
+
+        const matchProgInfo = (school.programs || []).some((p) => {
+          return (
+            normalizeText(p.field_of_study).includes(normSearch) ||
+            normalizeText(p.degree_type).includes(normSearch) ||
+            normalizeText(p.description).includes(normSearch)
+          );
+        });
+        if (!matchProgInfo) return false;
+      }
+
+      return true;
+    });
+  });
+
+  const selectedSchool = $derived(
+    allSchools.find((s) => s.id === selectedSchoolId) || null
+  );
 
   function getInitials(name: string): string {
     if (!name) return "SCH";
@@ -60,21 +391,57 @@
     return words.slice(0, 3).map((w) => w[0]?.toUpperCase() || "").join("");
   }
 
+  // Fetch schools with automatic metadata enrichment and program fallback
   async function fetchSchools() {
     loading = true;
     loadError = null;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/schools`);
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) params.set("search", searchQuery.trim());
+      if (selectedInstitutionType !== "All") params.set("institution_type", selectedInstitutionType.toLowerCase());
+      if (selectedCity.trim() && selectedCity !== "All") params.set("city", selectedCity.trim());
+      if (selectedField.trim()) params.set("field_of_study", selectedField.trim());
+      if (selectedDegree !== "All") params.set("degree_type", selectedDegree);
+      if (minTuition !== "" && !isNaN(Number(minTuition))) params.set("min_tuition", String(minTuition));
+      if (maxTuition !== "" && !isNaN(Number(maxTuition))) params.set("max_tuition", String(maxTuition));
+      if (selectedLanguage !== "All") params.set("language_of_instruction", selectedLanguage);
+      if (selectedDeliveryMode !== "All") params.set("delivery_mode", selectedDeliveryMode);
+
+      const queryString = params.toString();
+      const url = `${API_BASE_URL}/api/schools${queryString ? `?${queryString}` : ""}`;
+
+      const res = await fetch(url);
       if (!res.ok) {
         throw new Error(`Failed to load schools: HTTP ${res.status}`);
       }
-      const data: School[] = await res.json();
-      schools = data;
+      let data: School[] = await res.json();
 
-      // Pre-load programs in background so search filter works across degree types
-      for (const school of schools) {
-        fetchProgramsForSchool(school.id);
+      // Enrich with verified fallback metadata
+      data = data.map(enrichSchool);
+
+      // If programs not loaded (e.g. backend running older schema on Render), fetch /api/programs
+      const hasPrograms = data.some((s) => s.programs && s.programs.length > 0);
+      if (!hasPrograms) {
+        try {
+          const progRes = await fetch(`${API_BASE_URL}/api/programs`);
+          if (progRes.ok) {
+            const allProgs: Program[] = await progRes.json();
+            const progsBySchool: Record<string, Program[]> = {};
+            for (const p of allProgs) {
+              if (!progsBySchool[p.school_id]) progsBySchool[p.school_id] = [];
+              progsBySchool[p.school_id].push(p);
+            }
+            data = data.map((s) => ({
+              ...s,
+              programs: progsBySchool[s.id] || [],
+            }));
+          }
+        } catch (err) {
+          console.warn("Could not load /api/programs fallback:", err);
+        }
       }
+
+      allSchools = data;
     } catch (err: any) {
       console.error("Failed to fetch schools from backend API:", err);
       loadError = err.message || "Failed to load universities from server.";
@@ -83,19 +450,33 @@
     }
   }
 
-  async function fetchProgramsForSchool(schoolId: string) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/schools/${schoolId}/programs`);
-      if (res.ok) {
-        const progs: Program[] = await res.json();
-        const index = schools.findIndex((s) => s.id === schoolId);
-        if (index !== -1) {
-          schools[index] = { ...schools[index], programs: progs };
-        }
-      }
-    } catch (err) {
-      console.warn(`Could not load programs for school ${schoolId}:`, err);
-    }
+  function triggerServerFetchDebounced() {
+    if (serverDebounceTimeout) clearTimeout(serverDebounceTimeout);
+    serverDebounceTimeout = setTimeout(() => {
+      fetchSchools();
+    }, 400);
+  }
+
+  function handleSearchInput() {
+    triggerServerFetchDebounced();
+  }
+
+  function applyFilters() {
+    triggerServerFetchDebounced();
+  }
+
+  function resetAllFilters() {
+    searchQuery = "";
+    selectedInstitutionType = "All";
+    selectedCity = "";
+    selectedField = "";
+    selectedDegree = "All";
+    minTuition = "";
+    maxTuition = "";
+    includeUnlistedTuition = false;
+    selectedLanguage = "All";
+    selectedDeliveryMode = "All";
+    fetchSchools();
   }
 
   async function loadFavorites() {
@@ -112,7 +493,6 @@
     event.stopPropagation();
     const isCurrentlyFav = favoriteIds.includes(schoolId);
 
-    // Optimistic UI update
     if (isCurrentlyFav) {
       favoriteIds = favoriteIds.filter((id) => id !== schoolId);
     } else {
@@ -130,7 +510,6 @@
       }
     } catch (err) {
       console.error("Failed to update favorite on server:", err);
-      // Revert optimistic update on failure
       if (isCurrentlyFav) {
         favoriteIds = [...favoriteIds, schoolId];
       } else {
@@ -141,10 +520,6 @@
 
   function openSchoolDetail(schoolId: string) {
     selectedSchoolId = schoolId;
-    const school = schools.find((s) => s.id === schoolId);
-    if (school && !school.programs) {
-      fetchProgramsForSchool(schoolId);
-    }
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -161,36 +536,16 @@
     loadFavorites();
     fetchSchools();
   });
-
-  const filteredSchools = $derived(
-    schools.filter((s) => {
-      const query = searchQuery.toLowerCase().trim();
-      const hasProgramsMatch = s.programs?.some((p) =>
-        p.field_of_study.toLowerCase().includes(query) ||
-        (p.degree_type && p.degree_type.toLowerCase().includes(query)) ||
-        (p.description && p.description.toLowerCase().includes(query))
-      );
-
-      const matchesSearch =
-        !query ||
-        s.name.toLowerCase().includes(query) ||
-        (s.location && s.location.toLowerCase().includes(query)) ||
-        (s.description && s.description.toLowerCase().includes(query)) ||
-        hasProgramsMatch;
-
-      const matchesDegree =
-        selectedFilter === "All" ||
-        s.programs?.some((p) => p.degree_type === selectedFilter);
-
-      return matchesSearch && matchesDegree;
-    })
-  );
 </script>
 
 <svelte:window
   onkeydown={(e) => {
-    if (e.key === "Escape" && selectedSchoolId) {
-      closeSchoolDetail();
+    if (e.key === "Escape") {
+      if (selectedSchoolId) {
+        closeSchoolDetail();
+      } else if (showFiltersPanel) {
+        showFiltersPanel = false;
+      }
     }
   }}
 />
@@ -213,13 +568,17 @@
     <!-- 1. LIST VIEW (Default State: Common App style search)    -->
     <!-- ======================================================== -->
     <header class="header">
-      <h2>Discover Universities & Higher Institutes</h2>
-      <p class="subtitle">
-        Browse higher education institutions in Cameroon. Click any institution to view its full profile, accredited degree programs, tuition fees, and admission criteria.
-      </p>
+      <div class="header-content">
+        <h2>Discover Universities & Higher Institutes</h2>
+        <p class="subtitle">
+          Browse verified higher education institutions across Cameroon. Filter by institution type, degree level, tuition fee range, location, and study mode.
+        </p>
+      </div>
     </header>
 
-    <div class="filter-section">
+    <!-- Filter Control Bar -->
+    <div class="search-and-filter-bar">
+      <!-- Search Input -->
       <div class="search-box">
         <svg class="search-icon" viewBox="0 0 24 24" width="20" height="20">
           <path
@@ -232,57 +591,465 @@
         </svg>
         <input
           type="text"
-          placeholder="Search by school name, location, degree type, or field of study..."
+          placeholder="Search by institution name, location, or study program..."
           bind:value={searchQuery}
+          oninput={handleSearchInput}
         />
         {#if searchQuery}
-          <button class="btn-clear" onclick={() => (searchQuery = "")} aria-label="Clear search">✕</button>
+          <button
+            class="btn-clear"
+            onclick={() => {
+              searchQuery = "";
+              applyFilters();
+            }}
+            aria-label="Clear search"
+          >
+            ✕
+          </button>
         {/if}
       </div>
 
-      <div class="degree-chips">
-        <span class="chips-label">Filter by Degree:</span>
-        {#each DEGREE_FILTERS as filter}
-          <button
-            type="button"
-            class="chip"
-            class:active={selectedFilter === filter}
-            onclick={() => (selectedFilter = filter)}
-          >
-            {filter}
-          </button>
-        {/each}
-      </div>
+      <!-- Filters Toggle Button -->
+      <button
+        type="button"
+        class="btn-filter-toggle"
+        class:panel-open={showFiltersPanel}
+        class:has-active={activeFiltersCount > 0}
+        onclick={() => (showFiltersPanel = !showFiltersPanel)}
+        aria-expanded={showFiltersPanel}
+      >
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+        <span>Filters</span>
+        {#if activeFiltersCount > 0}
+          <span class="filter-badge">{activeFiltersCount}</span>
+        {/if}
+        <svg
+          class="chevron-icon"
+          class:rotated={showFiltersPanel}
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {#if activeFiltersCount > 0 || searchQuery}
+        <button
+          type="button"
+          class="btn-reset-text"
+          onclick={resetAllFilters}
+          title="Reset all search and filters"
+        >
+          Reset All
+        </button>
+      {/if}
     </div>
 
-    {#if loading}
+    <!-- Quick Degree Type Pills -->
+    <div class="degree-chips-row">
+      <span class="chips-label">Degree Level:</span>
+      {#each DEGREE_TYPES as deg}
+        {@const isSelected = selectedDegree === deg.value}
+        <button
+          type="button"
+          class="chip"
+          class:active={isSelected}
+          onclick={() => {
+            if (deg.value === "All") {
+              selectedDegree = "All";
+            } else if (selectedDegree === deg.value) {
+              selectedDegree = "All"; // Toggle off
+            } else {
+              selectedDegree = deg.value;
+            }
+            applyFilters();
+          }}
+        >
+          {deg.label}
+        </button>
+      {/each}
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- EXPANDABLE ADVANCED FILTERS PANEL                        -->
+    <!-- ======================================================== -->
+    {#if showFiltersPanel}
+      <div class="filters-panel">
+        <div class="filters-panel-header">
+          <div class="panel-title-wrap">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#2563eb" stroke-width="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            <h3>Advanced Search Filters</h3>
+          </div>
+          <button
+            type="button"
+            class="btn-panel-close"
+            onclick={() => (showFiltersPanel = false)}
+            aria-label="Close filters panel"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div class="filters-grid">
+          <!-- 1. Institution Type -->
+          <div class="filter-card">
+            <label class="filter-label" for="filter-type">Institution Type</label>
+            <div class="segmented-control">
+              {#each INSTITUTION_TYPES as type}
+                <button
+                  type="button"
+                  class="segment-btn"
+                  class:active={selectedInstitutionType.toLowerCase() === type.toLowerCase()}
+                  onclick={() => {
+                    selectedInstitutionType = type;
+                    applyFilters();
+                  }}
+                >
+                  {type}
+                </button>
+              {/each}
+            </div>
+            <span class="field-hint">Public universities, IPES (Privé), or IUP.</span>
+          </div>
+
+          <!-- 2. City / Region -->
+          <div class="filter-card">
+            <label class="filter-label" for="city-input">City / Region</label>
+            <div class="city-input-wrap">
+              <input
+                id="city-input"
+                type="text"
+                placeholder="e.g. Yaoundé, Douala, Buea..."
+                bind:value={selectedCity}
+                oninput={applyFilters}
+              />
+            </div>
+            <div class="quick-preset-chips">
+              {#each CITY_PRESETS as preset}
+                {@const isSelected = preset === 'All' ? (selectedCity === '' || selectedCity === 'All') : (normalizeText(selectedCity) === normalizeText(preset))}
+                <button
+                  type="button"
+                  class="preset-chip"
+                  class:selected={isSelected}
+                  onclick={() => {
+                    if (preset === 'All') {
+                      selectedCity = '';
+                    } else if (normalizeText(selectedCity) === normalizeText(preset)) {
+                      selectedCity = ''; // Toggle off
+                    } else {
+                      selectedCity = preset;
+                    }
+                    applyFilters();
+                  }}
+                >
+                  {preset}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <!-- 3. Field of Study -->
+          <div class="filter-card">
+            <label class="filter-label" for="field-input">Field of Study</label>
+            <div class="field-input-wrap">
+              <input
+                id="field-input"
+                type="text"
+                placeholder="e.g. Computer Science, Medicine, Law, Telecom..."
+                bind:value={selectedField}
+                oninput={applyFilters}
+              />
+            </div>
+            <div class="field-suggestions">
+              {#each FIELD_SUGGESTIONS as sug}
+                {@const isSelected = normalizeText(selectedField) === normalizeText(sug)}
+                <button
+                  type="button"
+                  class="sug-pill"
+                  class:active={isSelected}
+                  onclick={() => {
+                    if (isSelected) {
+                      selectedField = ''; // Toggle off
+                    } else {
+                      selectedField = sug;
+                    }
+                    applyFilters();
+                  }}
+                >
+                  {sug}
+                </button>
+              {/each}
+            </div>
+          </div>
+
+          <!-- 4. Tuition Fee Range -->
+          <div class="filter-card">
+            <label class="filter-label" for="tuition-max">Tuition Fee Range (FCFA)</label>
+            <div class="tuition-inputs-row">
+              <div class="input-with-currency">
+                <span class="currency-tag">Min</span>
+                <input
+                  id="tuition-min"
+                  type="number"
+                  placeholder="0"
+                  bind:value={minTuition}
+                  oninput={applyFilters}
+                />
+              </div>
+              <span class="range-separator">—</span>
+              <div class="input-with-currency">
+                <span class="currency-tag">Max</span>
+                <input
+                  id="tuition-max"
+                  type="number"
+                  placeholder="2,000,000"
+                  bind:value={maxTuition}
+                  oninput={applyFilters}
+                />
+              </div>
+            </div>
+            <div class="quick-preset-chips">
+              {#each TUITION_PRESETS as preset}
+                {@const isSelected = preset.max === '' ? (maxTuition === '' && minTuition === '') : (Number(maxTuition) === preset.max)}
+                <button
+                  type="button"
+                  class="preset-chip"
+                  class:selected={isSelected}
+                  onclick={() => {
+                    if (preset.max === '') {
+                      maxTuition = '';
+                      minTuition = '';
+                    } else if (Number(maxTuition) === preset.max) {
+                      maxTuition = ''; // Toggle off
+                    } else {
+                      maxTuition = preset.max;
+                    }
+                    applyFilters();
+                  }}
+                >
+                  {preset.label}
+                </button>
+              {/each}
+            </div>
+            <label class="checkbox-unlisted-label">
+              <input type="checkbox" bind:checked={includeUnlistedTuition} onchange={applyFilters} />
+              <span>Include institutions with unlisted tuition</span>
+            </label>
+          </div>
+
+          <!-- 5. Language of Instruction -->
+          <div class="filter-card">
+            <label class="filter-label" for="lang-select">Language of Instruction</label>
+            <select
+              id="lang-select"
+              class="filter-select"
+              bind:value={selectedLanguage}
+              onchange={applyFilters}
+            >
+              {#each LANGUAGE_OPTIONS as opt}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+
+          <!-- 6. Delivery Mode -->
+          <div class="filter-card">
+            <label class="filter-label" for="mode-select">Delivery Mode</label>
+            <select
+              id="mode-select"
+              class="filter-select"
+              bind:value={selectedDeliveryMode}
+              onchange={applyFilters}
+            >
+              {#each DELIVERY_OPTIONS as opt}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+
+        <!-- Filter Panel Footer -->
+        <div class="filters-panel-footer">
+          <div class="active-count-label">
+            {#if activeFiltersCount > 0}
+              <span><strong>{activeFiltersCount}</strong> active filter{activeFiltersCount > 1 ? "s" : ""} applied</span>
+            {:else}
+              <span>No filters applied. Showing all institutions.</span>
+            {/if}
+          </div>
+          <div class="panel-actions">
+            {#if activeFiltersCount > 0}
+              <button type="button" class="btn-clear-filters" onclick={resetAllFilters}>
+                Clear All
+              </button>
+            {/if}
+            <button
+              type="button"
+              class="btn-apply-filters"
+              onclick={() => {
+                applyFilters();
+                showFiltersPanel = false;
+              }}
+            >
+              Apply Filters
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Active Filters Summary Tags (when panel is collapsed) -->
+    {#if activeFiltersCount > 0 && !showFiltersPanel}
+      <div class="active-pills-bar">
+        <span class="active-label">Active:</span>
+        {#if selectedInstitutionType !== "All"}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              selectedInstitutionType = "All";
+              applyFilters();
+            }}
+          >
+            Type: {selectedInstitutionType} ✕
+          </button>
+        {/if}
+        {#if selectedCity.trim()}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              selectedCity = "";
+              applyFilters();
+            }}
+          >
+            City: {selectedCity} ✕
+          </button>
+        {/if}
+        {#if selectedField.trim()}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              selectedField = "";
+              applyFilters();
+            }}
+          >
+            Field: {selectedField} ✕
+          </button>
+        {/if}
+        {#if selectedDegree !== "All"}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              selectedDegree = "All";
+              applyFilters();
+            }}
+          >
+            Degree: {selectedDegree} ✕
+          </button>
+        {/if}
+        {#if (minTuition !== "" && Number(minTuition) > 0) || (maxTuition !== "" && Number(maxTuition) > 0)}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              minTuition = "";
+              maxTuition = "";
+              applyFilters();
+            }}
+          >
+            Tuition: {minTuition ? `≥ ${Number(minTuition).toLocaleString()} ` : ""}{maxTuition ? `≤ ${Number(maxTuition).toLocaleString()} ` : ""}FCFA ✕
+          </button>
+        {/if}
+        {#if includeUnlistedTuition}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              includeUnlistedTuition = false;
+              applyFilters();
+            }}
+          >
+            + Unlisted Tuition ✕
+          </button>
+        {/if}
+        {#if selectedLanguage !== "All"}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              selectedLanguage = "All";
+              applyFilters();
+            }}
+          >
+            Lang: {selectedLanguage} ✕
+          </button>
+        {/if}
+        {#if selectedDeliveryMode !== "All"}
+          <button
+            type="button"
+            class="active-pill"
+            onclick={() => {
+              selectedDeliveryMode = "All";
+              applyFilters();
+            }}
+          >
+            Mode: {selectedDeliveryMode} ✕
+          </button>
+        {/if}
+        <button type="button" class="btn-clear-all-link" onclick={resetAllFilters}>
+          Clear all
+        </button>
+      </div>
+    {/if}
+
+    <!-- Result Count Header -->
+    <div class="results-meta-bar">
+      <span class="results-count">
+        {#if loading && allSchools.length === 0}
+          Searching institutions...
+        {:else}
+          Showing <strong>{filteredSchools.length}</strong> {filteredSchools.length === 1 ? "institution" : "institutions"}
+        {/if}
+      </span>
+    </div>
+
+    <!-- Content States -->
+    {#if loading && allSchools.length === 0}
       <div class="loading-state">
         <div class="spinner"></div>
-        <p>Loading schools and programs from database...</p>
+        <p>Loading universities matching your filters from server...</p>
       </div>
-    {:else if loadError}
+    {:else if loadError && allSchools.length === 0}
       <div class="error-state">
         <p class="error-text">⚠️ {loadError}</p>
         <button class="btn-reset" onclick={fetchSchools}>Retry</button>
       </div>
     {:else if filteredSchools.length === 0}
       <div class="empty-state">
-        <p>No universities found matching your filter.</p>
-        <button
-          class="btn-reset"
-          onclick={() => {
-            searchQuery = "";
-            selectedFilter = "All";
-          }}>Reset Filters</button
-        >
+        <div class="empty-icon">🔍</div>
+        <h3>No institutions match your filters</h3>
+        <p>We couldn't find any institutions matching all your selected criteria. Try adjusting your filters or resetting.</p>
+        <button class="btn-reset" onclick={resetAllFilters}>Clear filters</button>
       </div>
     {:else}
-      <!-- Common App Style List View Rows (Left: Logo Box, Right: Name, Location, Heart) -->
+      <!-- Schools List -->
       <div class="schools-list">
         {#each filteredSchools as school (school.id)}
           {@const isFav = favoriteIds.includes(school.id)}
+          {@const tuitionSummary = getSchoolTuitionSummary(school)}
           <div class="school-row">
-            <!-- Left section: Fixed-size boxed container holding logo / initials fallback -->
+            <!-- Left section: Boxed container holding logo / fallback -->
             <div class="logo-box">
               {#if school.logo_url && !logoErrors[school.id]}
                 <img
@@ -298,15 +1065,22 @@
               {/if}
             </div>
 
-            <!-- Right section: School Name + Location -->
+            <!-- Middle section: School Info -->
             <div class="school-info-col">
-              <button
-                type="button"
-                class="school-name-btn"
-                onclick={() => openSchoolDetail(school.id)}
-              >
-                {school.name}
-              </button>
+              <div class="school-header-line">
+                <button
+                  type="button"
+                  class="school-name-btn"
+                  onclick={() => openSchoolDetail(school.id)}
+                >
+                  {school.name}
+                </button>
+                {#if school.institution_type}
+                  <span class="type-badge {school.institution_type.toLowerCase()}">
+                    {school.institution_type.toUpperCase()}
+                  </span>
+                {/if}
+              </div>
 
               {#if school.location}
                 <div class="school-location-line">
@@ -318,9 +1092,27 @@
                   <span>{school.location}</span>
                 </div>
               {/if}
+
+              {#if tuitionSummary}
+                <div class="school-tuition-line">
+                  <span class="tuition-pill">{tuitionSummary}</span>
+                </div>
+              {/if}
+
+              {#if school.programs && school.programs.length > 0}
+                <div class="programs-preview-line">
+                  <span class="programs-count-tag">{school.programs.length} {school.programs.length === 1 ? 'Program' : 'Programs'}:</span>
+                  <span class="programs-tags-list">
+                    {school.programs.slice(0, 3).map(p => p.field_of_study).join(" • ")}
+                    {#if school.programs.length > 3}
+                      <span class="more-progs">+{school.programs.length - 3} more</span>
+                    {/if}
+                  </span>
+                </div>
+              {/if}
             </div>
 
-            <!-- Far-right: Favorite heart button -->
+            <!-- Far-right: Favorite Heart Button -->
             <button
               type="button"
               class="btn-favorite"
@@ -359,7 +1151,7 @@
 
 <style>
   .discover-page {
-    max-width: 980px;
+    max-width: 1040px;
     margin: 0 auto;
     padding: 2rem 1.5rem 4rem;
     color: #1a2b4a;
@@ -367,33 +1159,39 @@
   }
 
   /* List Header */
+  .header {
+    margin-bottom: 1.75rem;
+  }
+
   .header h2 {
-    font-size: 2rem;
-    font-weight: 700;
+    font-size: 2.1rem;
+    font-weight: 750;
     margin: 0 0 0.5rem;
     color: #0f172a;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
   }
 
   .subtitle {
     color: #64748b;
-    font-size: 1rem;
-    margin-bottom: 2rem;
-    line-height: 1.5;
+    font-size: 1.02rem;
+    margin: 0;
+    line-height: 1.55;
+    max-width: 820px;
   }
 
-  /* Filters */
-  .filter-section {
-    margin-bottom: 2rem;
+  /* Search & Filter Bar */
+  .search-and-filter-bar {
     display: flex;
-    flex-direction: column;
-    gap: 1rem;
+    align-items: center;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
   }
 
   .search-box {
     position: relative;
     display: flex;
     align-items: center;
+    flex: 1;
   }
 
   .search-icon {
@@ -431,11 +1229,88 @@
     line-height: 1;
   }
 
-  .degree-chips {
+  /* Filter Toggle Button */
+  .btn-filter-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.85rem 1.25rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  }
+
+  .btn-filter-toggle:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+
+  .btn-filter-toggle.panel-open {
+    background: #eff6ff;
+    border-color: #2563eb;
+    color: #1d4ed8;
+  }
+
+  .btn-filter-toggle.has-active {
+    border-color: #2563eb;
+    background: #f0f7ff;
+    color: #1d4ed8;
+  }
+
+  .filter-badge {
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .chevron-icon {
+    transition: transform 0.2s ease;
+  }
+
+  .chevron-icon.rotated {
+    transform: rotate(180deg);
+  }
+
+  .btn-reset-text {
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.5rem;
+    text-decoration: underline;
+    transition: color 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn-reset-text:hover {
+    color: #ef4444;
+  }
+
+  /* Degree Chips Row */
+  .degree-chips-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
+    margin-bottom: 1.25rem;
   }
 
   .chips-label {
@@ -468,19 +1343,396 @@
   }
 
   /* ======================================================== */
-  /* Common App Style School Rows (Clean horizontal list item) */
+  /* Advanced Filters Panel                                   */
+  /* ======================================================== */
+  .filters-panel {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.75rem;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06);
+    animation: slideDown 0.2s ease-out;
+  }
+
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .filters-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .panel-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .panel-title-wrap h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .btn-panel-close {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.25rem;
+    line-height: 1;
+    border-radius: 6px;
+    transition: all 0.15s;
+  }
+
+  .btn-panel-close:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .filter-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .filter-label {
+    font-size: 0.85rem;
+    font-weight: 650;
+    color: #334155;
+    letter-spacing: -0.01em;
+  }
+
+  .field-hint {
+    font-size: 0.78rem;
+    color: #94a3b8;
+  }
+
+  /* Segmented Control */
+  .segmented-control {
+    display: flex;
+    background: #f1f5f9;
+    padding: 0.25rem;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .segment-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 0.45rem 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #64748b;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .segment-btn.active {
+    background: #ffffff;
+    color: #2563eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Inputs & Selects */
+  .city-input-wrap input,
+  .field-input-wrap input,
+  .filter-select {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #1e293b;
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .city-input-wrap input:focus,
+  .field-input-wrap input:focus,
+  .filter-select:focus {
+    border-color: #2563eb;
+  }
+
+  .quick-preset-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.3rem;
+  }
+
+  .preset-chip {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    font-size: 0.78rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .preset-chip:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+
+  .preset-chip.selected {
+    background: #eff6ff;
+    border-color: #93c5fd;
+    color: #1d4ed8;
+    font-weight: 600;
+  }
+
+  /* Field Suggestions */
+  .field-suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.3rem;
+  }
+
+  .sug-pill {
+    background: none;
+    border: 1px dashed #cbd5e1;
+    color: #64748b;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .sug-pill:hover {
+    border-color: #2563eb;
+    color: #2563eb;
+    background: #f0f7ff;
+  }
+
+  .sug-pill.active {
+    border-color: #2563eb;
+    border-style: solid;
+    color: #1d4ed8;
+    background: #eff6ff;
+    font-weight: 600;
+  }
+
+  .checkbox-unlisted-label {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.8rem;
+    color: #64748b;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    user-select: none;
+  }
+
+  .checkbox-unlisted-label input {
+    cursor: pointer;
+    accent-color: #2563eb;
+  }
+
+  /* Tuition Range */
+  .tuition-inputs-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .range-separator {
+    color: #94a3b8;
+    font-weight: 600;
+  }
+
+  .input-with-currency {
+    position: relative;
+    flex: 1;
+    display: flex;
+    align-items: center;
+  }
+
+  .currency-tag {
+    position: absolute;
+    left: 0.65rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 600;
+    pointer-events: none;
+  }
+
+  .input-with-currency input {
+    width: 100%;
+    padding: 0.65rem 0.65rem 0.65rem 2.5rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #1e293b;
+    outline: none;
+  }
+
+  .input-with-currency input:focus {
+    border-color: #2563eb;
+  }
+
+  /* Panel Footer */
+  .filters-panel-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid #f1f5f9;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .active-count-label {
+    font-size: 0.88rem;
+    color: #64748b;
+  }
+
+  .panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .btn-clear-filters {
+    background: none;
+    border: 1px solid #cbd5e1;
+    color: #475569;
+    padding: 0.55rem 1rem;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .btn-clear-filters:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #0f172a;
+  }
+
+  .btn-apply-filters {
+    background: #2563eb;
+    border: none;
+    color: #ffffff;
+    padding: 0.55rem 1.25rem;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+    transition: background 0.15s;
+  }
+
+  .btn-apply-filters:hover {
+    background: #1d4ed8;
+  }
+
+  /* Active Pills Bar */
+  .active-pills-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    margin-bottom: 1rem;
+    padding: 0.5rem 0.85rem;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .active-label {
+    font-size: 0.82rem;
+    font-weight: 650;
+    color: #64748b;
+    margin-right: 0.25rem;
+  }
+
+  .active-pill {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    font-size: 0.8rem;
+    font-weight: 550;
+    padding: 0.25rem 0.65rem;
+    border-radius: 9999px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .active-pill:hover {
+    border-color: #ef4444;
+    color: #ef4444;
+    background: #fef2f2;
+  }
+
+  .btn-clear-all-link {
+    background: none;
+    border: none;
+    color: #ef4444;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: underline;
+    margin-left: auto;
+  }
+
+  /* Results Meta Bar */
+  .results-meta-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+  }
+
+  .results-count {
+    font-size: 0.92rem;
+    color: #64748b;
+  }
+
+  /* ======================================================== */
+  /* Common App Style School Rows                             */
   /* ======================================================== */
   .schools-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.85rem;
   }
 
   .school-row {
     background: #ffffff;
     border: 1px solid #e2e8f0;
     border-radius: 12px;
-    padding: 1rem 1.25rem;
+    padding: 1.1rem 1.25rem;
     display: flex;
     align-items: center;
     gap: 1.25rem;
@@ -491,14 +1743,14 @@
   .school-row:hover {
     border-color: #cbd5e1;
     background-color: #fafbfc;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   }
 
-  /* Left Section: Fixed-size boxed container for school logo / fallback */
+  /* Left Section: Logo */
   .logo-box {
-    width: 60px;
-    height: 60px;
-    min-width: 60px;
+    width: 62px;
+    height: 62px;
+    min-width: 62px;
     border-radius: 10px;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
@@ -529,13 +1781,20 @@
     justify-content: center;
   }
 
-  /* Right Section: School Name + Location */
+  /* Middle Section */
   .school-info-col {
     display: flex;
     flex-direction: column;
-    gap: 0.3rem;
+    gap: 0.35rem;
     flex: 1;
     min-width: 0;
+  }
+
+  .school-header-line {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-wrap: wrap;
   }
 
   .school-name-btn {
@@ -543,7 +1802,7 @@
     border: none;
     padding: 0;
     margin: 0;
-    font-size: 1.12rem;
+    font-size: 1.15rem;
     font-weight: 700;
     color: #0f172a;
     text-align: left;
@@ -558,12 +1817,82 @@
     text-underline-offset: 3px;
   }
 
+  .type-badge {
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+    letter-spacing: 0.04em;
+  }
+
+  .type-badge.public {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
+  }
+
+  .type-badge.ipes {
+    background: #f5f3ff;
+    color: #6d28d9;
+    border-color: #ddd6fe;
+  }
+
+  .type-badge.iup {
+    background: #fffbeb;
+    color: #b45309;
+    border-color: #fde68a;
+  }
+
+  .school-tuition-line {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+  }
+
+  .tuition-pill {
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #047857;
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    padding: 0.12rem 0.5rem;
+    border-radius: 4px;
+  }
+
   .school-location-line {
     display: flex;
     align-items: center;
     gap: 0.35rem;
     font-size: 0.88rem;
     color: #64748b;
+  }
+
+  .programs-preview-line {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: #475569;
+    flex-wrap: wrap;
+    margin-top: 0.1rem;
+  }
+
+  .programs-count-tag {
+    font-weight: 650;
+    color: #2563eb;
+  }
+
+  .programs-tags-list {
+    color: #64748b;
+  }
+
+  .more-progs {
+    color: #94a3b8;
+    font-weight: 500;
   }
 
   /* Far-right Favorite Heart Button */
@@ -591,15 +1920,35 @@
   .empty-state,
   .error-state {
     text-align: center;
-    padding: 4rem 1rem;
+    padding: 4rem 1.5rem;
     background: #ffffff;
     border-radius: 16px;
     border: 1px dashed #cbd5e1;
   }
 
+  .empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .empty-state h3 {
+    margin: 0.5rem 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .empty-state p {
+    color: #64748b;
+    font-size: 0.95rem;
+    max-width: 480px;
+    margin: 0 auto 1.5rem;
+    line-height: 1.5;
+  }
+
   .spinner {
-    width: 36px;
-    height: 36px;
+    width: 38px;
+    height: 38px;
     border: 3px solid #e2e8f0;
     border-top-color: #2563eb;
     border-radius: 50%;
@@ -614,21 +1963,29 @@
   }
 
   .btn-reset {
-    margin-top: 1rem;
     background: #2563eb;
     color: #ffffff;
     border: none;
-    padding: 0.5rem 1.25rem;
+    padding: 0.6rem 1.4rem;
     border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .btn-reset:hover {
+    background: #1d4ed8;
   }
 
   /* Responsive layout adjustments */
-  @media (max-width: 640px) {
+  @media (max-width: 768px) {
+    .filters-grid {
+      grid-template-columns: 1fr;
+    }
+
     .school-row {
       gap: 0.85rem;
-      padding: 0.85rem 1rem;
+      padding: 0.95rem 1rem;
     }
 
     .logo-box {
@@ -638,7 +1995,7 @@
     }
 
     .school-name-btn {
-      font-size: 1rem;
+      font-size: 1.02rem;
     }
   }
 </style>

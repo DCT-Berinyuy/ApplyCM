@@ -48,4 +48,7 @@ def make_auth(client):
 
 def pytest_sessionfinish(session, exitstatus):
     engine.dispose()
-    os.unlink(_DB_FILE.name)
+    try:
+        os.unlink(_DB_FILE.name)
+    except (PermissionError, OSError):
+        pass
